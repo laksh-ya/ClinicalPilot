@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClinicalPilot — Final Architecture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f6ff',
+              100: '#e0edff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              900: '#1e3a8a',
+            }
+          },
+          boxShadow: {
+            'card': '0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -2px rgba(0, 0, 0, 0.02)',
+            'card-hover': '0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #FAFAFA;
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    .bg-grid {
+      background-image: 
+        linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+    }
+
+    .glass-nav {
+      background: rgba(250, 250, 250, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    
+    .text-gradient {
+      background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Diagram connect lines */
+    .flow-line {
+      width: 2px;
+      height: 24px;
+      background-color: #E5E7EB;
+      margin: 0 auto;
+    }
+    .flow-arrow {
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 6px solid #E5E7EB;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body class="selection:bg-brand-100 selection:text-brand-900 overflow-x-hidden">
+
+  <!-- NAVIGATION -->
+  <nav class="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-gray-200/60">
+    <div class="container mx-auto px-6 h-16 flex items-center justify-between max-w-6xl">
+      <div class="text-lg font-bold tracking-tight text-gray-900 border-r border-gray-200 pr-4">
+        Clinical<span class="text-brand-600">Pilot</span>
+      </div>
+      <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-500">
+        <a href="#pipeline" class="hover:text-gray-900 transition-colors">Data Flow</a>
+        <a href="#agents" class="hover:text-gray-900 transition-colors">Agents</a>
+        <a href="#debate" class="hover:text-gray-900 transition-colors">Debate</a>
+        <a href="#guardrails" class="hover:text-gray-900 transition-colors">Guardrails</a>
+        <a href="#features" class="hover:text-gray-900 transition-colors">Extra Features</a>
+        <a href="#techstack" class="hover:text-gray-900 transition-colors">Tech Stack</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="relative pt-36 pb-24 md:pt-48 md:pb-32 overflow-hidden border-b border-gray-100 bg-white">
+    <div class="absolute inset-0 bg-grid z-0"></div>
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-brand-500/5 rounded-[100%] blur-[120px] pointer-events-none z-0"></div>
+
+    <div class="container mx-auto px-6 relative z-10 max-w-4xl text-center">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-600 text-xs font-semibold uppercase tracking-wider mb-8">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+        </span>
+        Final Architecture
+      </div>
+      
+      <h1 class="text-5xl md:text-7xl font-bold tracking-tighter mb-6 text-gradient">
+        Clinical Decision Support,<br /> Redefined.
+      </h1>
+      
+      <p class="text-lg md:text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed font-medium">
+        A production-ready, 1-day buildable multi-agent architecture. No bloat, no missing pieces. Combines multi-modal inputs, explicit safety checks, and adversarial agent debate.
+      </p>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-6 mb-8 text-left max-w-3xl mx-auto overflow-hidden shadow-sm">
+         <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 text-center">Data Flow Summary</div>
+         <p class="text-xs md:text-sm font-mono text-gray-700 leading-relaxed text-center">
+            FHIR/EHR/Text <span class="text-brand-500">→</span> Anonymizer <span class="text-brand-500">→</span> Unified Schema <span class="text-brand-500">→</span><br class="md:hidden"/> 
+            [ Clinical || Literature || Safety ] <span class="text-brand-500">→</span><br class="md:hidden"/>
+            Debate (Critic, 2-3 rounds) <span class="text-brand-500">→</span><br class="md:hidden"/>
+            Final Synthesizer <span class="text-brand-500">→</span> Validator <span class="text-brand-500">→</span> SOAP Note + Human Loop UI
+         </p>
+      </div>
+    </div>
+  </header>
+
+   <!-- 1 & 2. INPUT & PROCESSING LAYER -->
+  <section id="pipeline" class="py-24 relative">
+   <div class="container mx-auto px-6 max-w-4xl text-center">
+     <div class="mb-16">
+       <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">1 & 2 / Pipeline</h2>
+       <h3 class="text-3xl font-bold tracking-tight text-gray-900">Input & Processing Layers</h3>
+       <p class="text-gray-500 mt-3">Explicitly multi-modal gateways funneling into a unified schema.</p>
+     </div>
+
+     <!-- Flow Visual -->
+     <div class="max-w-2xl mx-auto flex flex-col items-center">
+        <!-- Input Gateway -->
+        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Input Gateway</h4>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full h-full">
+           <div class="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-sm relative transition-all hover:border-brand-300">
+              <h5 class="font-bold text-gray-900 text-sm mb-1">FHIR API</h5>
+              <p class="text-xs text-gray-500">HL7 FHIR JSON objects</p>
+           </div>
+           <div class="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-sm relative transition-all hover:border-brand-300">
+              <h5 class="font-bold text-gray-900 text-sm mb-1">EHR Upload</h5>
+              <p class="text-xs text-gray-500">PDFs / CSV ingestion</p>
+           </div>
+           <div class="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-sm relative transition-all hover:border-brand-300">
+              <h5 class="font-bold text-gray-900 text-sm mb-1">Free Text / Voice</h5>
+              <p class="text-xs text-gray-500">Clinical raw prompt</p>
+           </div>
+        </div>
+
+        <div class="flow-line mt-4"></div>
+        <div class="flow-arrow mb-4"></div>
+
+        <!-- Anonymizer -->
+        <div class="bg-white border-2 border-purple-300 p-5 rounded-xl shadow-sm w-full max-w-sm">
+           <div class="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-1">Layer 1 Processing</div>
+           <h5 class="font-bold text-gray-900 text-base mb-1">Anonymizer (PHI Scrubbing)</h5>
+           <p class="text-xs text-gray-600 mb-2">Preserves clinical meaning while stripping identities.</p>
+           <code class="text-[10px] bg-purple-50 text-purple-700 px-2 py-1 rounded block">Tool: Microsoft Presidio / Gretel.ai API</code>
+        </div>
+
+        <div class="flow-line mt-4"></div>
+        <div class="flow-arrow mb-4"></div>
+
+        <!-- Processing Layer -->
+        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Processing Layer (Parsers)</h4>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+           <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl">
+              <h5 class="font-semibold text-gray-700 text-xs mb-1">FHIR Parser</h5>
+              <p class="text-[10px] text-gray-500">JSON → Lightweight text chunks. No over-engineering.</p>
+           </div>
+           <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl">
+              <h5 class="font-semibold text-gray-700 text-xs mb-1">EHR Parser</h5>
+              <p class="text-[10px] text-gray-500">PDF → Text via Unstructured.io</p>
+           </div>
+           <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl">
+              <h5 class="font-semibold text-gray-700 text-xs mb-1">Text Parser</h5>
+              <p class="text-[10px] text-gray-500">Voice transcription / Text formatting</p>
+           </div>
+        </div>
+
+        <div class="flow-line mt-4"></div>
+        <div class="flow-arrow mb-4"></div>
+
+        <!-- Unified Schema -->
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-lg w-full max-w-md text-left">
+           <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center border border-gray-700 text-lg">🧩</div>
+              <div>
+                 <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Target State</div>
+                 <h5 class="font-bold text-white text-lg">Unified Schema</h5>
+              </div>
+           </div>
+           <div class="bg-black/50 border border-gray-700 rounded-lg p-3 text-xs font-mono text-emerald-400 leading-relaxed shadow-inner">
+              {<br/>
+              &nbsp;&nbsp;"object": "PatientContext",<br/>
+              &nbsp;&nbsp;"demographics": [...],<br/>
+              &nbsp;&nbsp;"conditions": [...],<br/>
+              &nbsp;&nbsp;"medications": [...],<br/>
+              &nbsp;&nbsp;"labs_vitals": [...],<br/>
+              &nbsp;&nbsp;"current_prompt": "..."<br/>
+              }
+           </div>
+        </div>
+
+     </div>
+   </div>
+ </section>
+
+  <!-- 3. AGENT LAYER (CORE) -->
+  <section id="agents" class="py-24 bg-white border-y border-gray-200">
+    <div class="container mx-auto px-6 max-w-6xl">
+      <div class="mb-16">
+        <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">3 / Intelligence Base</h2>
+        <h3 class="text-3xl font-bold tracking-tight text-gray-900">Agent Layer (The Core)</h3>
+        <p class="text-gray-500 mt-2 max-w-2xl">The Orchestrator Controller (GPT-4o or MedGemma) feeds the Unified Context into three simultaneous expert agents.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Clinical -->
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col pt-8 pb-6 px-6 relative overflow-hidden group">
+          <div class="absolute top-0 left-0 w-full h-1 bg-blue-500 group-hover:h-2 transition-all"></div>
+          <div class="flex items-center gap-4 mb-6">
+             <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-xl shadow-sm border border-blue-100 text-blue-600 shrink-0">🧠</div>
+             <div>
+                <h3 class="text-xl font-bold text-gray-900">Clinical Agent</h3>
+                <div class="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">GPT-4o / MedGemma-2-9b</div>
+             </div>
+          </div>
+          
+          <div class="flex-1">
+             <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-100 pb-1">Input / Tools</h4>
+                <p class="text-sm text-gray-600">Unified context + Few-shot chain-of-thought prompting.</p>
+             </div>
+          </div>
+
+          <div class="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mt-auto">
+            <div class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Generates Output
+            </div>
+            <ul class="text-sm font-semibold text-blue-950 space-y-1 list-disc list-inside">
+               <li>Differential dx (ranked)</li>
+               <li>Risk scores</li>
+               <li>Initial SOAP draft</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Literature -->
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col pt-8 pb-6 px-6 relative overflow-hidden group">
+          <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500 group-hover:h-2 transition-all"></div>
+          <div class="flex items-center gap-4 mb-6">
+             <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-xl shadow-sm border border-emerald-100 text-emerald-600 shrink-0">📚</div>
+             <div>
+                <h3 class="text-xl font-bold text-gray-900">Literature Agent</h3>
+                <div class="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">GPT-4o-mini (Fast)</div>
+             </div>
+          </div>
+          
+          <div class="flex-1">
+             <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-100 pb-1">Input / Tools</h4>
+                <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                   <li>BioPython (Entrez)</li>
+                   <li>Europe PMC API</li>
+                   <li>Internal RAG DB search</li>
+                </ul>
+             </div>
+          </div>
+
+          <div class="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 mt-auto">
+            <div class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Generates Output
+            </div>
+            <ul class="text-sm font-semibold text-emerald-950 space-y-1 list-disc list-inside">
+               <li>Evidence snippets</li>
+               <li>Confidence levels</li>
+               <li>Contradictions</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Safety -->
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 flex flex-col pt-8 pb-6 px-6 relative overflow-hidden group">
+          <div class="absolute top-0 left-0 w-full h-1 bg-orange-500 group-hover:h-2 transition-all"></div>
+          <div class="flex items-center gap-4 mb-6">
+             <div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-xl shadow-sm border border-orange-100 text-orange-600 shrink-0">🛡️</div>
+             <div>
+                <h3 class="text-xl font-bold text-gray-900">Safety Agent</h3>
+                <div class="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">GPT-4o / Rule-based</div>
+             </div>
+          </div>
+          
+          <div class="flex-1">
+             <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 border-b border-gray-100 pb-1">Input / Tools</h4>
+                <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                   <li>DrugBank (CSV dump)</li>
+                   <li>RxNorm</li>
+                   <li>FDA API</li>
+                </ul>
+             </div>
+          </div>
+
+          <div class="bg-orange-50/50 border border-orange-100 rounded-lg p-4 mt-auto">
+            <div class="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Generates Output
+            </div>
+            <ul class="text-sm font-semibold text-orange-950 space-y-1 list-disc list-inside">
+               <li>Structured warnings</li>
+               <li>Severity tiers</li>
+               <li>Contraindications</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+      <div class="bg-gray-50 border border-gray-200 mt-8 rounded-xl p-4 flex items-center gap-3">
+         <span class="text-gray-400">ℹ️</span>
+         <p class="text-sm text-gray-600"><strong>MedGemma Node:</strong> Run via Ollama or vLLM. Use 9B for speed, 27B if handling with heavy GPUs. Fallback to OpenAI if local inference fails.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. DEBATE LAYER -->
+  <section id="debate" class="py-24 bg-[#FAFAFA]">
+    <div class="container mx-auto px-6 max-w-5xl">
+       <div class="text-center mb-16">
+          <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">4 / Protocol</h2>
+          <h3 class="text-3xl font-bold tracking-tight text-gray-900">Debate Layer (Critic + Rounds)</h3>
+          <p class="text-gray-500 mt-3 max-w-xl mx-auto">Orchestrated with LangGraph. Fixed 2-3 rounds max for deterministic timeout limits avoiding infinite loops.</p>
+       </div>
+
+       <!-- The Tri-Fold Loop -->
+       <div class="flex flex-col md:flex-row items-center gap-4 justify-center mb-12">
+          <!-- R1 -->
+          <div class="bg-white border border-gray-200 shadow-sm rounded-xl p-6 text-center w-full md:w-64">
+             <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Round 1</div>
+             <div class="text-lg font-bold text-gray-900 mb-1">( Initialization )</div>
+             <p class="text-xs text-gray-500">Clinical, Literature, Safety agents generate output independently.</p>
+          </div>
+          
+          <div class="hidden md:flex items-center text-gray-300">
+             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </div>
+          <div class="flex md:hidden items-center justify-center text-gray-300 my-2">
+             <svg class="w-6 h-6 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </div>
+
+          <!-- R2 -->
+          <div class="bg-brand-50 border-2 border-brand-500 shadow-md rounded-xl p-6 text-center w-full md:w-64 relative transform hover:-translate-y-1 transition duration-300">
+             <div class="absolute -top-3 -right-3 w-6 h-6 bg-brand-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">★</div>
+             <div class="text-[10px] font-bold text-brand-600 uppercase tracking-widest mb-2">Round 2</div>
+             <div class="text-lg font-bold text-brand-900 mb-1">( Critic Review )</div>
+             <p class="text-xs text-brand-700/80">Reviews all outputs and explicitly logs dissent constraints.</p>
+          </div>
+
+          <div class="hidden md:flex items-center text-gray-300">
+             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </div>
+          <div class="flex md:hidden items-center justify-center text-gray-300 my-2">
+             <svg class="w-6 h-6 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </div>
+
+          <!-- R3 -->
+          <div class="bg-white border border-gray-200 shadow-sm rounded-xl p-6 text-center w-full md:w-64">
+             <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Round 3</div>
+             <div class="text-lg font-bold text-gray-900 mb-1">( Final Revision )</div>
+             <p class="text-xs text-gray-500">Agents revise. If consensus fails, task heavily flagged for human review.</p>
+          </div>
+       </div>
+
+       <!-- Critic Agent Constraints -->
+       <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-card max-w-3xl mx-auto">
+          <div class="bg-gray-900 px-6 py-5 flex items-center gap-3 border-b border-gray-800">
+             <span class="text-white text-xl">⚖️</span>
+             <h4 class="text-white font-bold tracking-wide">The Critic Agent Constraints</h4>
+          </div>
+          <div class="p-6 md:p-8">
+             <p class="text-sm text-gray-600 mb-8 font-medium">During Round 2, the Critic strictly reviews the aggregated context against three primary vectors to produce a <code class="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs border border-gray-200 font-mono">dissent_log</code>:</p>
+             
+             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Card 1 -->
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                   <div class="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-lg mb-3">📑</div>
+                   <strong class="text-gray-900 text-sm block mb-2">EHR Contradictions</strong>
+                   <p class="text-xs text-gray-600 leading-relaxed italic border-l-2 border-blue-400 pl-3">"Ddx includes Pulmonary Embolism, but no D-dimer was ordered in lab history."</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                   <div class="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-lg mb-3">🔬</div>
+                   <strong class="text-gray-900 text-sm block mb-2">Evidence Gaps</strong>
+                   <p class="text-xs text-gray-600 leading-relaxed italic border-l-2 border-emerald-400 pl-3">"Literature agent found no recent robust papers on this specific rare presentation."</p>
+                </div>
+                <!-- Card 3 -->
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                   <div class="w-10 h-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-lg mb-3">⚠️</div>
+                   <strong class="text-gray-900 text-sm block mb-2">Safety Misses</strong>
+                   <p class="text-xs text-gray-600 leading-relaxed italic border-l-2 border-orange-400 pl-3">"Safety agent missed renal dosing adjustment requirement for this patient's current GFR."</p>
+                </div>
+             </div>
+          </div>
+       </div>
+
+    </div>
+  </section>
+
+  <!-- 5 & 6. VALIDATION, GUARDRAILS AND OBSERVABILITY -->
+  <section id="guardrails" class="py-24 bg-white border-y border-gray-200">
+    <div class="container mx-auto px-6 max-w-6xl">
+      <div class="mb-16 text-center md:text-left">
+        <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">5 & 6 / Output & Protection</h2>
+        <h3 class="text-3xl font-bold tracking-tight text-gray-900">Validation, Guardrails & Observability</h3>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+         
+         <!-- VALIDATOR PROCESS -->
+         <div class="bg-gray-50 border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col h-full">
+            <h4 class="font-bold text-gray-900 text-xl mb-3 flex items-center gap-3">
+               <div class="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                  <svg class="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+               </div>
+               Final Synthesizer & Validator
+            </h4>
+            <p class="text-sm text-gray-600 mb-6">Takes debate logs and agent outputs, generating terminal files after strict final logic passes.</p>
+            
+            <div class="bg-white border border-gray-200 rounded-xl p-5 mb-6 flex-1">
+               <h5 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Validator Sub-Checks</h5>
+               <ul class="text-sm text-gray-700 space-y-3">
+                  <li class="flex items-center gap-3"><div class="w-2 h-2 bg-brand-500 rounded-full"></div> Output Completeness Verification</li>
+                  <li class="flex items-center gap-3"><div class="w-2 h-2 bg-brand-500 rounded-full"></div> Format Compliance checks</li>
+                  <li class="flex items-center gap-3"><div class="w-2 h-2 bg-brand-500 rounded-full"></div> Safety Clearance validation</li>
+                  <li class="flex items-center gap-3"><div class="w-2 h-2 bg-brand-500 rounded-full"></div> MUC Uncertainty Flags applied correctly</li>
+               </ul>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+               <span class="px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-xs font-bold text-gray-800">SOAP Note Export</span>
+               <span class="px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-xs font-bold text-gray-800">Human Loop Gate</span>
+               <span class="px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm text-xs font-bold text-gray-800">Full Traced Logs</span>
+            </div>
+         </div>
+
+         <!-- GUARDRAILS & OBSERVABILITY -->
+         <div class="space-y-6 flex flex-col h-full">
+            <!-- Non-Negotiable Guardrails -->
+            <div class="bg-[#111827] border border-gray-800 rounded-2xl p-6 shadow-card text-white flex-1">
+               <div class="flex justify-between items-start mb-4">
+                  <h4 class="font-bold text-white text-lg">Guardrails Framework</h4>
+                  <span class="text-[10px] bg-gray-800 text-gray-300 px-2 py-1 rounded font-mono uppercase tracking-wider">Non-Negotiable</span>
+               </div>
+               <p class="text-xs text-gray-400 font-mono mb-5 border-b border-gray-800 pb-3">Powered by Guardrails AI / Pydantic</p>
+               <ul class="text-sm text-gray-300 space-y-3">
+                  <li class="flex items-start gap-3"><span class="text-emerald-400 font-bold shrink-0">✓</span> Output schema validation strictly to SOAP structure</li>
+                  <li class="flex items-start gap-3"><span class="text-emerald-400 font-bold shrink-0">✓</span> Zero hallucinated medications permitted</li>
+                  <li class="flex items-start gap-3"><span class="text-emerald-400 font-bold shrink-0">✓</span> Differential logic must produce ≥ 2 options</li>
+                  <li class="flex items-start gap-3"><span class="text-emerald-400 font-bold shrink-0">✓</span> Safety flags must be explicitly called out if triggered</li>
+               </ul>
+            </div>
+
+            <!-- Observability -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+               <h4 class="font-bold text-gray-900 text-lg mb-1">Observability Stack</h4>
+               <p class="text-xs text-brand-600 font-mono font-medium bg-brand-50 inline-block px-2 py-0.5 rounded mb-4">LangSmith / Langfuse / Phoenix</p>
+               <ul class="text-sm text-gray-600 space-y-2.5">
+                  <li class="flex items-center gap-2">- Trace every agent call</li>
+                  <li class="flex items-center gap-2">- Token usage per agent computation</li>
+                  <li class="flex items-center gap-2">- Latency breakdown metrics per layer</li>
+                  <li class="flex items-center gap-2">- Visual debate round mapping</li>
+               </ul>
+            </div>
+         </div>
+
+      </div>
+
+      <!-- Human in the Loop Note -->
+      <div class="bg-blue-50 border border-blue-200 p-5 rounded-xl text-sm text-blue-900 flex items-start gap-4">
+         <div class="mt-0.5 text-xl">🔄</div>
+         <div>
+            <strong class="block mb-1 text-blue-950 font-bold">Human-in-the-Loop Process</strong>
+            <p class="text-blue-800/80 leading-relaxed">When an output hits the UI, the Doctor can heavily edit the generated SOAP. This feeds directly back to the Critic Agent to trigger a new debate round (hard-capped at 1 single iteration loop to prevent endless cycles).</p>
+         </div>
+      </div>
+    </div>
+  </section>
+
+   <!-- 7. UNCERTAINTY (MUC) -->
+   <section class="py-24 bg-[#FAFAFA]">
+      <div class="container mx-auto px-6 max-w-5xl">
+        <div class="mb-12 text-center">
+          <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">7 / Confidence Module</h2>
+          <h3 class="text-3xl font-bold tracking-tight text-gray-900">Medical Uncertainty Quantification (MUC)</h3>
+          <p class="text-gray-500 mt-3 max-w-xl mx-auto">Optional but highly recommended visual logic. Appends explicit certainty scoring to Clinical Agent outputs directly in the UI.</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+           <!-- High -->
+           <div class="p-8 border border-emerald-200 bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow">
+              <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                 <h4 class="font-bold text-gray-900 text-lg">High Confidence</h4>
+                 <div class="w-4 h-4 bg-emerald-500 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.8)]"></div>
+              </div>
+              <p class="text-gray-600 leading-relaxed">Multiple independent guidelines agree entirely. Accompanied by strong, irrefutable evidence bases.</p>
+           </div>
+           <!-- Med -->
+           <div class="p-8 border border-amber-200 bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow">
+              <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                 <h4 class="font-bold text-gray-900 text-lg">Medium Confidence</h4>
+                 <div class="w-4 h-4 bg-amber-500 rounded-full shadow-[0_0_12px_rgba(245,158,11,0.8)]"></div>
+              </div>
+              <p class="text-gray-600 leading-relaxed">Guidelines differ slightly on approach, or available literature features limited primary evidence.</p>
+           </div>
+           <!-- Low -->
+           <div class="p-8 border border-red-200 bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow">
+               <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
+                 <h4 class="font-bold text-gray-900 text-lg">Low Confidence</h4>
+                 <div class="w-4 h-4 bg-red-500 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.8)]"></div>
+              </div>
+              <p class="text-gray-600 leading-relaxed">Highlights a rare presentation or relies on completely contradictory literature. Demands intense review.</p>
+           </div>
+        </div>
+      </div>
+    </section>
+
+  <!-- EXTRA FEATURES BENTO -->
+  <section id="features" class="py-24 bg-white border-y border-gray-200">
+    <div class="container mx-auto px-6 max-w-6xl">
+      <div class="mb-12">
+        <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">Expansion</h2>
+        <h3 class="text-3xl font-bold tracking-tight text-gray-900">Extra Features Integrated</h3>
+        <p class="mt-3 text-gray-500">Modules specific to edge-cases and visual augmentation.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        <!-- Emergency Mode -->
+        <div class="md:col-span-8 bg-[#1B1111] rounded-[2rem] p-8 md:p-10 relative overflow-hidden group shadow-card border border-red-900/30">
+          <div class="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent opacity-50 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
+          
+          <div class="flex items-center justify-between mb-6 relative z-10">
+             <div class="flex items-center gap-4">
+               <div class="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-3xl shadow-[0_0_20px_rgba(239,68,68,0.2)]">🚨</div>
+               <h3 class="text-2xl font-bold text-white tracking-tight">Emergency Mode</h3>
+             </div>
+             <span class="px-3 py-1 bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-mono rounded uppercase tracking-widest flex items-center gap-2"><div class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div> Always Accessible</span>
+          </div>
+          
+          <p class="text-gray-400 mb-8 max-w-xl leading-relaxed relative z-10 font-medium">A dedicated screen and big red button. Designed specifically for paramedics in the field, triage nurses, and on-call physicians reacting at 3am.</p>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5 text-sm text-gray-300 relative z-10">
+            <div class="bg-black/30 p-4 rounded-xl border border-red-500/10">
+              <strong class="text-white block mb-1">Voice / Text Input Only</strong> 
+              <span class="text-xs text-gray-400 block">Absolutely no EHR upload allowed (speed is the ultimate point).</span>
+            </div>
+            <div class="bg-black/30 p-4 rounded-xl border border-red-500/10">
+              <strong class="text-white block mb-1">Bypasses Debate Layer</strong> 
+              <span class="text-xs text-gray-400 block">Orchestrator routes directly to Clinical + Safety agents in parallel.</span>
+            </div>
+             <div class="bg-black/30 p-4 rounded-xl border border-red-500/10">
+              <strong class="text-white block mb-1">Sub-5 Second Output</strong> 
+              <span class="text-xs text-gray-400 block">Returns top 3 differentials, immediate red flags, and next call-to-action.</span>
+            </div>
+             <div class="bg-black/30 p-4 rounded-xl border border-red-500/10">
+              <strong class="text-white block mb-1">Tuned Processing</strong> 
+              <span class="text-xs text-gray-400 block">Exclusively trained on emergency triage logic (ESI scoring, time-critical conditions).</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Imaging Classifier -->
+        <div class="md:col-span-4 bg-white border border-gray-200 rounded-[2rem] p-8 md:p-10 shadow-card flex flex-col justify-between">
+          <div>
+             <div class="flex items-center justify-between mb-6">
+                <div class="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-xl">🫁</div>
+                <span class="text-[10px] font-mono font-bold bg-brand-50 text-brand-600 border border-brand-100 px-2 py-1 rounded uppercase tracking-wider">Bonus Demo</span>
+             </div>
+             <h3 class="text-xl font-bold text-gray-900 mb-3">Imaging Classifier</h3>
+             <p class="text-gray-600 text-sm leading-relaxed mb-6">Built primarily for demo and judging capability. Proves contextual multi-modal intelligence.</p>
+             <ul class="space-y-3 text-sm text-gray-600 mb-6">
+                <li class="flex gap-3 items-start"><span class="text-gray-300 mt-0.5">■</span> Upload a CXR or CT scan instantly</li>
+                <li class="flex gap-3 items-start"><span class="text-gray-300 mt-0.5">■</span> CNN classifier (pre-trained, not from scratch) detects: Pneumonia, Effusion, Cardiomegaly, Pneumothorax</li>
+             </ul>
+          </div>
+          <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 italic">
+             Results merge perfectly into PatientContext to pivot the working differential.
+          </div>
+        </div>
+
+        <!-- Medical Error Prevention Panel -->
+        <div class="md:col-span-12 bg-white border border-gray-200 rounded-[2rem] p-8 md:p-10 shadow-card flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
+          <div class="max-w-sm shrink-0">
+            <div class="w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center text-2xl mb-6 shadow-inner">💊</div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-3 tracking-tight">Medical Error Prevention Panel</h3>
+            <p class="text-gray-600 leading-relaxed text-sm mb-4">Runs cleanly as a persistent sidebar on <em>every case</em>, not just specific queried drug lookups. Intercepts all recognized interactions automatically.</p>
+            <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg text-xs text-gray-500">
+               <strong>Flag Format:</strong> Displays the problem, the mechanism in plain natural language, and an overt recommendation.
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full content-start">
+             <!-- DDx Interactions -->
+             <div class="border-l-[3px] border-red-500 bg-white p-5 rounded-r-xl border-y border-r border-gray-200 shadow-sm hover:shadow transition">
+               <h5 class="text-sm font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">Drug-Drug Interactions</h5>
+               <p class="text-xs text-gray-500 leading-relaxed">Flags mapped across explicit severity tiers: <br/><strong>Contraindicated / Major / Moderate</strong>.</p>
+             </div>
+             <!-- Disease Contras -->
+             <div class="border-l-[3px] border-orange-500 bg-white p-5 rounded-r-xl border-y border-r border-gray-200 shadow-sm hover:shadow transition">
+               <h5 class="text-sm font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">Drug-Disease Contras</h5>
+               <p class="text-xs text-gray-500 leading-relaxed">E.g., Flagging NSAIDs in diagnosed CKD, or Metformin in contrast dye imaging cases.</p>
+             </div>
+             <!-- Dosing Alerts -->
+             <div class="border-l-[3px] border-brand-500 bg-white p-5 rounded-r-xl border-y border-r border-gray-200 shadow-sm hover:shadow transition">
+               <h5 class="text-sm font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">Dosing Alerts</h5>
+               <p class="text-xs text-gray-500 leading-relaxed">Alerts triggering when <strong>Renal or Hepatic</strong> adjustments are strictly needed based on labs.</p>
+             </div>
+             <!-- Pops -->
+             <div class="border-l-[3px] border-purple-500 bg-white p-5 rounded-r-xl border-y border-r border-gray-200 shadow-sm hover:shadow transition">
+               <h5 class="text-sm font-bold text-gray-900 mb-2 border-b border-gray-100 pb-2">Population Flags</h5>
+               <p class="text-xs text-gray-500 leading-relaxed">Specialized guardrails tailored manually for <strong>Pregnancy, Pediatric, and Elderly</strong> groups.</p>
+             </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH STACK & BUILD ORDER -->
+  <section id="techstack" class="py-24 bg-[#FAFAFA]">
+    <div class="container mx-auto px-6 max-w-6xl">
+      
+      <!-- Tech Stack -->
+      <div class="mb-16">
+        <h2 class="text-sm font-bold text-brand-600 uppercase tracking-widest mb-2">Build Configuration</h2>
+        <h3 class="text-3xl font-bold tracking-tight text-gray-900 mb-8">Definitive Tech Stack</h3>
+        
+        <div class="overflow-x-auto border border-gray-200 rounded-2xl shadow-sm bg-white">
+           <table class="w-full text-left text-sm whitespace-nowrap">
+              <thead class="uppercase tracking-wider border-b border-gray-200 bg-gray-50 font-bold text-[10px] text-gray-500">
+                 <tr>
+                    <th scope="col" class="px-6 py-4">Component</th>
+                    <th scope="col" class="px-6 py-4">Primary Tool</th>
+                    <th scope="col" class="px-6 py-4 border-l border-gray-100">Alternative</th>
+                 </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 text-gray-700">
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">LLM</td>
+                    <td class="px-6 py-3.5 font-medium">OpenAI GPT-4o</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">MedGemma-2-9b (Ollama)</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">Framework</td>
+                    <td class="px-6 py-3.5 font-medium">LangChain / LangGraph</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">Pure Python + Pydantic</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">RAG DB</td>
+                    <td class="px-6 py-3.5 font-medium">ChromaDB / Pinecone</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">Weaviate</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">PDF Parsing</td>
+                    <td class="px-6 py-3.5 font-medium">Unstructured.io</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">PyPDF2 (fallback)</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">Observability</td>
+                    <td class="px-6 py-3.5 font-medium">LangSmith (Free Tier)</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">Langfuse (open source)</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">Anonymization</td>
+                    <td class="px-6 py-3.5 font-medium">Microsoft Presidio</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">Manual RegEx (fallback)</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">APIs</td>
+                    <td class="px-6 py-3.5 font-medium">PubMed (E-utilities) / Europe PMC</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">BioC API</td>
+                 </tr>
+                 <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-3.5 font-semibold text-gray-900 border-r border-gray-50 bg-gray-50/50">Safety DB</td>
+                    <td class="px-6 py-3.5 font-medium text-brand-600">DrugBank Open Data</td>
+                    <td class="px-6 py-3.5 border-l border-gray-100 text-gray-500">RxNorm (NLM)</td>
+                 </tr>
+              </tbody>
+           </table>
+        </div>
+      </div>
+
+      <!-- Build Priority -->
+      <div class="mb-12">
+        <h3 class="text-2xl font-bold tracking-tight text-gray-900 mb-6">1-Day Build Priority</h3>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">1. Input Gateway</h4><span class="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">High</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">+ Anonymizer (Presidio setup).</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">2. Clinical Agent</h4><span class="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">High</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">Few-shot prompting. Greatest impact.</p>
+          </div>
+          <div class="bg-white border-2 border-brand-500 p-5 rounded-2xl shadow-md transition relative overflow-hidden">
+            <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-50 rounded-full blur-xl pointer-events-none"></div>
+            <div class="flex items-center justify-between mb-3 relative z-10"><h4 class="font-bold text-gray-900 text-sm">3. Debate Layer</h4><span class="text-[10px] font-mono font-bold text-white bg-brand-500 shadow-sm px-2 py-0.5 rounded uppercase">Core</span></div>
+            <p class="text-xs text-gray-600 leading-relaxed relative z-10 font-medium">Critic Agent. The 'wow' factor.</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">4. Safety Agent</h4><span class="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">Med</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">DrugBank & liability protection logs.</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">5. Literature Agent</h4><span class="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">Med</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">PubMed search and evidence sourcing.</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">6. Observability</h4><span class="text-[10px] font-mono font-bold text-gray-400 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded uppercase">Low</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">LangSmith tracing implementation.</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">7. Human Loop</h4><span class="text-[10px] font-mono font-bold text-gray-400 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded uppercase">Low</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">UI integration for output review.</p>
+          </div>
+          <div class="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm hover:border-brand-300 hover:shadow-md transition">
+            <div class="flex items-center justify-between mb-3"><h4 class="font-bold text-gray-900 text-sm">8. MUC Features</h4><span class="text-[10px] font-mono font-bold text-purple-600 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded uppercase">Bonus</span></div>
+            <p class="text-xs text-gray-500 leading-relaxed">Confidence UI. Build if time permits.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="py-12 bg-white border-t border-gray-200 text-center">
+    <div class="container mx-auto px-6">
+      <div class="text-lg font-bold tracking-tight text-gray-900 mb-3">
+        Clinical<span class="text-brand-600">Pilot</span>
+      </div>
+      <p class="text-xs text-gray-400 font-mono">Multi-Agent Clinical Decision Support · Production Architecture</p>
+    </div>
+  </footer>
+
+</body>
+</html>

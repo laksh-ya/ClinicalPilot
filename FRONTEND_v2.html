@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClinicalPilot — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --panel: #F4F3F0;
+    --panel-alt: #EEEDEA;
+    --border: #DDDCD8;
+    --border-light: #EEEDEA;
+    --accent: #2563EB;
+    --accent-light: #DBEAFE;
+    --accent-soft: #EFF6FF;
+    --green: #059669;
+    --green-light: #D1FAE5;
+    --green-soft: #ECFDF5;
+    --red: #DC2626;
+    --red-light: #FEE2E2;
+    --red-soft: #FEF2F2;
+    --orange: #D97706;
+    --orange-light: #FEF3C7;
+    --orange-soft: #FFFBEB;
+    --purple: #7C3AED;
+    --purple-light: #EDE9FE;
+    --purple-soft: #F5F3FF;
+    --text: #1A1A1A;
+    --text-secondary: #4A4A4A;
+    --text-muted: #7A7A7A;
+    --text-faint: #A0A0A0;
+    --white: #FFFFFF;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-xs: 6px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+    line-height: 1.7;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ---- NAVIGATION ---- */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 0 2rem;
+    height: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(250,250,248,0.85);
+    backdrop-filter: blur(16px) saturate(180%);
+    border-bottom: 1px solid var(--border-light);
+  }
+  .nav-logo {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .nav-logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 0.25rem; list-style: none; }
+  .nav-links a {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-xs);
+    transition: all 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--panel); }
+  @media(max-width:768px) { .nav-links { display: none; } }
+
+  /* ---- HERO ---- */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 8rem 2rem 6rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 100px;
+    margin-bottom: 2rem;
+    letter-spacing: 0.04em;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  h1 {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    animation: fadeUp 0.7s 0.1s ease both;
+  }
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero-sub {
+    margin-top: 1.5rem;
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    max-width: 620px;
+    line-height: 1.7;
+    font-weight: 400;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+  .hero-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2.5rem;
+    animation: fadeUp 0.9s 0.3s ease both;
+  }
+  .pill {
+    background: var(--white);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.35rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border-radius: 100px;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+  }
+  .pill:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+
+  /* ---- LAYOUT ---- */
+  .container { max-width: 1140px; margin: 0 auto; padding: 0 2rem; }
+  section { padding: 5rem 0; }
+  .section-divider { height: 1px; background: var(--border-light); max-width: 1140px; margin: 0 auto; }
+
+  .section-header { margin-bottom: 3rem; }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+  h2 {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+  h2 em { font-style: italic; color: var(--accent); }
+  .section-desc {
+    color: var(--text-secondary);
+    max-width: 600px;
+    font-size: 1.05rem;
+    line-height: 1.75;
+  }
+
+  /* ---- CARDS ---- */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.3s, transform 0.3s;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+  /* ---- FLOW PIPELINE ---- */
+  .pipeline { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  .flow-card {
+    width: 100%;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 2rem 2.5rem;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    transition: box-shadow 0.25s;
+  }
+  .flow-card:hover { box-shadow: var(--shadow-md); }
+  .flow-card.accent-border { border-left: 3px solid var(--accent); }
+  .flow-card.green-border { border-left: 3px solid var(--green); }
+  .flow-card.orange-border { border-left: 3px solid var(--orange); }
+  .flow-card.purple-border { border-left: 3px solid var(--purple); }
+  .flow-card.red-border { border-left: 3px solid var(--red); }
+
+  .flow-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+  }
+  .flow-tag.blue { background: var(--accent-light); color: var(--accent); }
+  .flow-tag.green { background: var(--green-light); color: var(--green); }
+  .flow-tag.orange { background: var(--orange-light); color: var(--orange); }
+  .flow-tag.purple { background: var(--purple-light); color: var(--purple); }
+  .flow-tag.red { background: var(--red-light); color: var(--red); }
+
+  .flow-card h3 {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+  .flow-card p { font-size: 0.92rem; color: var(--text-secondary); line-height: 1.7; }
+
+  .flow-connector {
+    width: 2px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--border), var(--border-light));
+    position: relative;
+  }
+  .flow-connector::after {
+    content: '↓';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    background: var(--bg);
+    padding: 0 4px;
+  }
+
+  .flow-sub-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  @media(max-width: 640px) { .flow-sub-cards { grid-template-columns: 1fr; } }
+  .flow-sub-card {
+    background: var(--panel);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.25rem;
+  }
+  .flow-sub-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .flow-sub-card .content { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; }
+
+  /* ---- AGENT CARDS ---- */
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 2.5rem;
+  }
+  @media(max-width: 768px) { .agents-grid { grid-template-columns: 1fr; } }
+
+  .agent-card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .agent-card.blue::before { background: var(--accent); }
+  .agent-card.green::before { background: var(--green); }
+  .agent-card.orange::before { background: var(--orange); }
+  .agent-card:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
+
+  .agent-icon {
+    width: 48px; height: 48px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1.25rem;
+  }
+  .agent-icon.blue { background: var(--accent-soft); }
+  .agent-icon.green { background: var(--green-soft); }
+  .agent-icon.orange { background: var(--orange-soft); }
+
+  .agent-card h3 { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+  .agent-model-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    background: var(--panel);
+    color: var(--text-muted);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 1rem;
+  }
+  .agent-card ul { list-style: none; margin-bottom: 1.25rem; }
+  .agent-card ul li {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 0.35rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    line-height: 1.5;
+  }
+  .agent-card ul li::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 0.5em;
+  }
+  .agent-card.blue ul li::before { background: var(--accent); }
+  .agent-card.green ul li::before { background: var(--green); }
+  .agent-card.orange ul li::before { background: var(--orange); }
+
+  .agent-output-box {
+    background: var(--panel);
+    border-radius: var(--radius-sm);
+    padding: 0.9rem 1rem;
+  }
+  .agent-output-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+  .agent-output-value { font-size: 0.82rem; font-weight: 500; line-height: 1.5; }
+  .agent-output-value.blue { color: var(--accent); }
+  .agent-output-value.green { color: var(--green); }
+  .agent-output-value.orange { color: var(--orange); }
+
+  /* ---- ORCHESTRATOR NOTE ---- */
+  .orchestrator-note {
+    margin-top: 1.5rem;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    box-shadow: var(--shadow-sm);
+  }
+  .orchestrator-note .icon {
+    width: 40px; height: 40px;
+    background: var(--purple-soft);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .orchestrator-note h4 { font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+  .orchestrator-note p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.65; }
+  .orchestrator-note code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+
+  /* ---- DEBATE ---- */
+  .debate-container {
+    margin-top: 2.5rem;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .debate-header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-light);
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .debate-header-left { display: flex; align-items: center; gap: 0.75rem; }
+  .debate-header h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+  .debate-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: var(--orange-light);
+    color: var(--orange);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+  }
+  .debate-rounds {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  @media(max-width: 640px) { .debate-rounds { grid-template-columns: 1fr; } }
+
+  .debate-round {
+    padding: 2rem;
+    border-right: 1px solid var(--border-light);
+    position: relative;
+  }
+  .debate-round:last-child { border-right: none; }
+  .round-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+  .round-title {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+  }
+  .round-items { list-style: none; }
+  .round-items li {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    padding: 0.3rem 0;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    line-height: 1.55;
+  }
+  .round-items li::before {
+    content: '→';
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.75em;
+    flex-shrink: 0;
+    margin-top: 0.15em;
+  }
+  .round-arrow {
+    position: absolute;
+    right: -14px; top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 28px; height: 28px;
+    background: var(--white);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  @media(max-width: 640px) { .round-arrow { display: none; } }
+
+  /* Critic detail */
+  .critic-detail {
+    margin-top: 1.5rem;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-left: 3px solid var(--orange);
+    border-radius: var(--radius);
+    padding: 2rem 2.5rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .critic-detail .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--orange);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  /* ---- CODE BLOCK ---- */
+  .code-block {
+    background: #1E1E2E;
+    border-radius: var(--radius-sm);
+    padding: 1.5rem 1.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: #CDD6F4;
+    overflow-x: auto;
+    line-height: 1.9;
+    margin-top: 1rem;
+  }
+  .code-comment { color: #6C7086; }
+  .code-key { color: #CBA6F7; }
+  .code-string { color: #A6E3A1; }
+  .code-fn { color: #89B4FA; }
+
+  /* ---- FLOWCHART SECTION ---- */
+  .flowchart-container {
+    margin-top: 3rem;
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 3rem 2.5rem;
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+  }
+  .flowchart-title {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+  }
+  .fc-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .fc-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 0.7rem 1.1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: center;
+    min-width: 105px;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .fc-box:hover { border-color: var(--accent); color: var(--accent); }
+  .fc-box.blue { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .fc-box.green { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+  .fc-box.orange { border-color: var(--orange); color: var(--orange); background: var(--orange-soft); }
+  .fc-box.purple { border-color: var(--purple); color: var(--purple); background: var(--purple-soft); }
+  .fc-box.warn { border-color: var(--orange); color: var(--orange); background: var(--orange-soft); }
+  .fc-box .sub { font-size: 0.58em; opacity: 0.7; display: block; margin-top: 2px; }
+
+  .fc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    text-align: center;
+    padding: 0.6rem 0;
+  }
+  .fc-arrow-h {
+    width: 28px; height: 2px;
+    background: var(--border);
+    position: relative;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .fc-arrow-h::after {
+    content: '▶';
+    position: absolute;
+    right: -6px; top: -7px;
+    font-size: 0.5rem;
+    color: var(--text-faint);
+  }
+
+  /* ---- TECH STACK ---- */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 2.5rem;
+  }
+  .stack-card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.3s;
+  }
+  .stack-card:hover { box-shadow: var(--shadow-md); }
+  .stack-category {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+  .stack-card h4 { color: var(--text); font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .stack-primary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+  }
+  .stack-alt { font-size: 0.78rem; color: var(--text-muted); }
+  .stack-alt span { color: var(--text-faint); margin: 0 3px; }
+
+  /* ---- MUC ---- */
+  .muc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    margin-top: 2.5rem;
+  }
+  @media(max-width: 640px) { .muc-grid { grid-template-columns: 1fr; } }
+  .muc-card {
+    padding: 2rem;
+    border-radius: var(--radius);
+    border: 1px solid;
+    text-align: center;
+    transition: box-shadow 0.3s;
+  }
+  .muc-card:hover { box-shadow: var(--shadow-md); }
+  .muc-card.high { border-color: var(--green); background: var(--green-soft); }
+  .muc-card.medium { border-color: var(--orange); background: var(--orange-soft); }
+  .muc-card.low { border-color: var(--red); background: var(--red-soft); }
+  .muc-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+  .muc-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .muc-card.high h4 { color: var(--green); }
+  .muc-card.medium h4 { color: var(--orange); }
+  .muc-card.low h4 { color: var(--red); }
+  .muc-card p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.65; }
+
+  /* ---- TIMELINE ---- */
+  .timeline { margin-top: 2.5rem; position: relative; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), var(--border-light));
+    border-radius: 1px;
+  }
+  .timeline-item {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1rem 0 1rem 3.5rem;
+    position: relative;
+  }
+  .timeline-num {
+    position: absolute;
+    left: 8px; top: 1rem;
+    width: 26px; height: 26px;
+    background: var(--accent-soft);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .timeline-content h4 { font-weight: 700; color: var(--text); margin-bottom: 0.2rem; font-size: 0.95rem; }
+  .timeline-content p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.65; }
+
+  /* ---- EXTRA FEATURES ---- */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    margin-top: 2.5rem;
+  }
+  .feature-card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.3s;
+  }
+  .feature-card:hover { box-shadow: var(--shadow-md); }
+
+  .feature-card-header {
+    padding: 2rem 2.5rem 1.5rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+  }
+  .feature-icon-lg {
+    width: 56px; height: 56px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    flex-shrink: 0;
+  }
+  .feature-icon-lg.red { background: var(--red-soft); }
+  .feature-icon-lg.purple { background: var(--purple-soft); }
+  .feature-icon-lg.blue { background: var(--accent-soft); }
+
+  .feature-card-header h3 {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+  }
+  .feature-card-header p {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+  }
+
+  .feature-card-body {
+    padding: 0 2.5rem 2rem;
+  }
+
+  .feature-bullets {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.5rem 1.5rem;
+  }
+  .feature-bullets li {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    padding: 0.4rem 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    line-height: 1.55;
+  }
+  .feature-bullets li::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 0.45em;
+  }
+  .feature-card.red-theme .feature-bullets li::before { background: var(--red); }
+  .feature-card.purple-theme .feature-bullets li::before { background: var(--purple); }
+  .feature-card.blue-theme .feature-bullets li::before { background: var(--accent); }
+
+  .feature-use-case {
+    margin-top: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: var(--panel);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .feature-use-case .uc-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+  }
+
+  /* ---- MED ERROR PANEL ---- */
+  .flag-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .flag-card {
+    background: var(--panel);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.25rem;
+    border-left: 3px solid;
+  }
+  .flag-card.severe { border-left-color: var(--red); }
+  .flag-card.major { border-left-color: var(--orange); }
+  .flag-card.moderate { border-left-color: #D97706; }
+  .flag-card.info { border-left-color: var(--accent); }
+  .flag-card h5 {
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  .flag-card.severe h5 { color: var(--red); }
+  .flag-card.major h5 { color: var(--orange); }
+  .flag-card.moderate h5 { color: #D97706; }
+  .flag-card.info h5 { color: var(--accent); }
+  .flag-card p { font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; }
+
+  /* ---- FOOTER ---- */
+  footer {
+    border-top: 1px solid var(--border-light);
+    padding: 3rem 2rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  footer strong {
+    font-family: 'Source Serif 4', Georgia, serif;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .footer-techs {
+    margin-top: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    letter-spacing: 0.03em;
+  }
+
+  /* ---- UTILITIES ---- */
+  .mt-1 { margin-top: 0.5rem; }
+  .mt-2 { margin-top: 1rem; }
+  .mt-3 { margin-top: 1.5rem; }
+  .mt-4 { margin-top: 2rem; }
+
+  @media(max-width: 600px) {
+    section { padding: 3.5rem 0; }
+    .flow-card { padding: 1.5rem; }
+    .agents-grid { grid-template-columns: 1fr; }
+    .feature-card-header { flex-direction: column; padding: 1.5rem; }
+    .feature-card-body { padding: 0 1.5rem 1.5rem; }
+    .feature-bullets { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav>
+  <div class="nav-logo">Clinical<span>Pilot</span></div>
+  <ul class="nav-links">
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#agents">Agents</a></li>
+    <li><a href="#debate">Debate</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#stack">Stack</a></li>
+    <li><a href="#build">Build Order</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">Final Architecture — System Design</div>
+  <h1>Clinical<em>Pilot</em></h1>
+  <p class="hero-sub">A multi-agent AI system for clinical decision support — combining EHR parsing, literature retrieval, safety checks, and adversarial debate to assist physicians at the point of care.</p>
+  <div class="hero-pills">
+    <span class="pill">GPT-4o / MedGemma</span>
+    <span class="pill">LangGraph</span>
+    <span class="pill">HL7 FHIR</span>
+    <span class="pill">Microsoft Presidio</span>
+    <span class="pill">ChromaDB</span>
+    <span class="pill">DrugBank</span>
+    <span class="pill">PubMed API</span>
+    <span class="pill">LangSmith</span>
+  </div>
+</div>
+
+<!-- ====== ARCHITECTURE ====== -->
+<div class="section-divider"></div>
+<section id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">01 — System Overview</div>
+      <h2>End-to-End <em>Data Flow</em></h2>
+      <p class="section-desc">ClinicalPilot ingests multi-modal clinical data, anonymizes PHI, runs parallel specialist agents, debates their outputs adversarially, and delivers a validated SOAP note with full observability.</p>
+    </div>
+
+    <div class="pipeline">
+
+      <!-- INPUT GATEWAY -->
+      <div class="flow-card accent-border">
+        <div class="flow-tag blue">Layer 1 — Input Gateway</div>
+        <h3>Multi-Modal Ingestion</h3>
+        <p>Three simultaneous input channels converge into a single processing gateway before any downstream handling.</p>
+        <div class="flow-sub-cards">
+          <div class="flow-sub-card">
+            <div class="label">FHIR API</div>
+            <div class="content">HL7 FHIR v4 JSON — Patient, Condition, Observation, MedReq resources</div>
+          </div>
+          <div class="flow-sub-card">
+            <div class="label">EHR Upload</div>
+            <div class="content">PDF / CSV documents — Unstructured.io with PyPDF2 fallback</div>
+          </div>
+          <div class="flow-sub-card">
+            <div class="label">Free Text / Voice</div>
+            <div class="content">Clinical prompts, voice transcription, STT integration</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-connector"></div>
+
+      <!-- ANONYMIZER -->
+      <div class="flow-card purple-border">
+        <div class="flow-tag purple">Layer 1b — PHI Scrubbing</div>
+        <h3>Anonymizer <span style="font-weight:400;color:var(--text-muted);font-size:0.88em;">— Microsoft Presidio</span></h3>
+        <p>All data passes through PHI scrubbing <em>before</em> touching any LLM. Presidio uses FHIR-specific entity recognizers to strip patient-identifiable information while preserving full clinical meaning. Synthetic data fallback via Gretel.ai. Zero PHI leaves the anonymization gate.</p>
+      </div>
+
+      <div class="flow-connector"></div>
+
+      <!-- PROCESSING -->
+      <div class="flow-card green-border">
+        <div class="flow-tag green">Layer 2 — Processing & Normalization</div>
+        <h3>Unified Schema: PatientContext</h3>
+        <p>Three parallel parsers (FHIR → JSON chunks, EHR → PDF text, Text → voice transcription) all normalize into a single <code style="font-family:'JetBrains Mono',monospace;color:var(--green);font-size:0.88em;background:var(--green-soft);padding:0.1em 0.4em;border-radius:3px;">PatientContext</code> schema containing demographics, conditions, medications, labs/vitals, and the current clinical prompt.</p>
+      </div>
+
+      <div class="flow-connector"></div>
+
+      <!-- AGENTS -->
+      <div class="flow-card accent-border">
+        <div class="flow-tag blue">Layer 3 — Agent Layer</div>
+        <h3>Three Parallel Specialist Agents</h3>
+        <p>The Orchestrator fans out to three specialist agents that run concurrently via <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:0.88em;background:var(--accent-soft);padding:0.1em 0.4em;border-radius:3px;">asyncio.gather()</code>. Each agent has distinct tools, prompting strategies, and output schemas.</p>
+      </div>
+
+      <div class="flow-connector"></div>
+
+      <!-- DEBATE -->
+      <div class="flow-card orange-border">
+        <div class="flow-tag orange">Layer 4 — Debate Layer</div>
+        <h3>Critic-Driven Adversarial Review</h3>
+        <p>A Debate Orchestrator runs 2–3 fixed rounds. Round 1: independent outputs. Round 2: Critic Agent challenges all outputs against EHR contradictions, evidence gaps, and safety misses. Round 3: revised consensus. Unresolved conflicts flagged for human review.</p>
+      </div>
+
+      <div class="flow-connector"></div>
+
+      <!-- VALIDATION -->
+      <div class="flow-card red-border">
+        <div class="flow-tag red">Layer 5 — Validation & Output</div>
+        <h3>Final Synthesizer + Validator Agent</h3>
+        <p>Checks output completeness, format compliance, safety clearance, and MUC confidence thresholds. Produces three simultaneous outputs: a structured SOAP Note, a Human-in-the-Loop gate for doctor edits and re-debate, and full observability logs tracing every agent decision.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====== AGENTS ====== -->
+<div class="section-divider"></div>
+<section id="agents">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">02 — Agent Layer</div>
+      <h2>Three Specialist <em>Agents</em></h2>
+      <p class="section-desc">Each agent runs in parallel with distinct prompting strategies, external tool integrations, and structured output schemas. The Orchestrator coordinates them via a LangGraph state machine.</p>
+    </div>
+
+    <div class="agents-grid">
+      <!-- Clinical Agent -->
+      <div class="agent-card blue">
+        <div class="agent-icon blue">🧠</div>
+        <h3>Clinical Agent</h3>
+        <div class="agent-model-tag">GPT-4o / MedGemma-2-9b</div>
+        <ul>
+          <li>Few-shot chain-of-thought prompting</li>
+          <li>Unified PatientContext as input</li>
+          <li>Ranked differential diagnoses</li>
+          <li>Clinical risk scores</li>
+          <li>Initial SOAP note draft</li>
+        </ul>
+        <div class="agent-output-box">
+          <div class="agent-output-label">Outputs</div>
+          <div class="agent-output-value blue">Differentials (ranked) · Risk Scores · SOAP Draft</div>
+        </div>
+      </div>
+
+      <!-- Literature Agent -->
+      <div class="agent-card green">
+        <div class="agent-icon green">📚</div>
+        <h3>Literature Agent</h3>
+        <div class="agent-model-tag">GPT-4o-mini (fast)</div>
+        <ul>
+          <li>PubMed E-utilities search</li>
+          <li>Europe PMC API retrieval</li>
+          <li>Internal RAG (ChromaDB)</li>
+          <li>Evidence snippet extraction</li>
+          <li>Contradiction detection</li>
+        </ul>
+        <div class="agent-output-box">
+          <div class="agent-output-label">Outputs</div>
+          <div class="agent-output-value green">Evidence Snippets · Confidence Levels · Contradictions</div>
+        </div>
+      </div>
+
+      <!-- Safety Agent -->
+      <div class="agent-card orange">
+        <div class="agent-icon orange">🛡️</div>
+        <h3>Safety Agent</h3>
+        <div class="agent-model-tag">GPT-4o / Rule-Based</div>
+        <ul>
+          <li>DrugBank open data (CSV)</li>
+          <li>RxNorm (NLM) lookups</li>
+          <li>FDA API cross-checks</li>
+          <li>Drug interaction detection</li>
+          <li>Renal/hepatic dosing flags</li>
+        </ul>
+        <div class="agent-output-box">
+          <div class="agent-output-label">Outputs</div>
+          <div class="agent-output-value orange">Structured Warnings · Severity Ratings · Contraindications</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orchestrator note -->
+    <div class="orchestrator-note">
+      <div class="icon">⚙️</div>
+      <div>
+        <h4>Orchestrator</h4>
+        <p>GPT-4o primary with MedGemma-2-9b (Ollama/vLLM) as local fallback. Runs all three agents in parallel via <code>asyncio.gather()</code>. State managed through LangGraph. If local GPU inference fails, auto-falls back to OpenAI API.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== DEBATE ====== -->
+<div class="section-divider"></div>
+<section id="debate">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">03 — Debate Layer</div>
+      <h2>Adversarial <em>Critic Rounds</em></h2>
+      <p class="section-desc">A structured debate forces agents to reconcile conflicting evidence. Fixed 2–3 rounds prevent infinite loops. Human re-trigger adds one additional iteration maximum.</p>
+    </div>
+
+    <div class="debate-container">
+      <div class="debate-header">
+        <div class="debate-header-left">
+          <span style="font-size:1.1rem;">⚔️</span>
+          <h3>Debate Orchestrator — LangGraph State Machine</h3>
+        </div>
+        <div class="debate-badge">Max 2–3 Rounds</div>
+      </div>
+      <div class="debate-rounds">
+        <div class="debate-round">
+          <div class="round-number">Round 01</div>
+          <div class="round-title">Independent Generation</div>
+          <ul class="round-items">
+            <li>Clinical Agent generates differentials + risk scores</li>
+            <li>Literature Agent retrieves evidence snippets</li>
+            <li>Safety Agent flags interactions and warnings</li>
+            <li>All outputs stored in shared LangGraph state</li>
+          </ul>
+          <div class="round-arrow">→</div>
+        </div>
+        <div class="debate-round">
+          <div class="round-number">Round 02</div>
+          <div class="round-title">Critic Agent Review</div>
+          <ul class="round-items">
+            <li>Challenges Ddx vs. EHR data contradictions</li>
+            <li>Flags evidence quality gaps in literature</li>
+            <li>Catches safety misses (e.g., renal dosing errors)</li>
+            <li>Outputs structured dissent_log</li>
+          </ul>
+          <div class="round-arrow">→</div>
+        </div>
+        <div class="debate-round">
+          <div class="round-number">Round 03</div>
+          <div class="round-title">Revised Consensus</div>
+          <ul class="round-items">
+            <li>Agents revise outputs based on critique</li>
+            <li>Unresolved conflicts flagged for human review</li>
+            <li>Doctor edit triggers 1 additional round (max)</li>
+            <li>Final state passed to Validator</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Critic Agent detail -->
+    <div class="critic-detail">
+      <div class="tag">Critic Agent Logic</div>
+      <div class="code-block">
+<span class="code-comment"># Critic challenges each agent against cross-cutting concerns</span>
+critic_checks = {
+    <span class="code-string">"ehr_contradictions"</span>: <span class="code-string">"Ddx includes PE but no D-dimer ordered?"</span>,
+    <span class="code-string">"evidence_gaps"</span>: <span class="code-string">"No recent papers on this rare presentation?"</span>,
+    <span class="code-string">"safety_misses"</span>: <span class="code-string">"Renal dosing adjustment missed for patient GFR?"</span>,
+    <span class="code-string">"consensus_check"</span>: <span class="code-string">"All agents agree → pass | disagree → flag human"</span>
+}
+
+<span class="code-comment"># dissent_log tracks every challenged claim with source agent</span>
+dissent_log = [{ <span class="code-string">"claim"</span>: ..., <span class="code-string">"challenger"</span>: <span class="code-string">"critic"</span>, <span class="code-string">"severity"</span>: ... }]
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== FULL FLOWCHART ====== -->
+<div class="section-divider"></div>
+<section>
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">04 — Complete Data Flow</div>
+      <h2>Full System <em>Flowchart</em></h2>
+      <p class="section-desc">End-to-end pipeline from raw clinical input to validated SOAP note output, showing every major decision gate and data transformation.</p>
+    </div>
+
+    <div class="flowchart-container">
+      <div class="flowchart-title">Complete ClinicalPilot Data Flow</div>
+
+      <!-- Inputs -->
+      <div class="fc-row">
+        <div class="fc-box blue">FHIR API<span class="sub">HL7 FHIR JSON</span></div>
+        <div class="fc-box blue">EHR Upload<span class="sub">PDF / CSV</span></div>
+        <div class="fc-box blue">Free Text<span class="sub">Voice / Prompt</span></div>
+      </div>
+      <div class="fc-label">↓ converge ↓</div>
+
+      <!-- Anonymizer -->
+      <div class="fc-row">
+        <div class="fc-box purple" style="min-width:240px;">🔒 Anonymizer<span class="sub">Microsoft Presidio — PHI Scrub</span></div>
+      </div>
+      <div class="fc-label">↓</div>
+
+      <!-- Parsers -->
+      <div class="fc-row">
+        <div class="fc-box">FHIR Parser<span class="sub">JSON → Chunks</span></div>
+        <div class="fc-box">EHR Parser<span class="sub">PDF → Text</span></div>
+        <div class="fc-box">Text Parser<span class="sub">Voice → Text</span></div>
+      </div>
+      <div class="fc-label">↓ normalize ↓</div>
+
+      <!-- Schema -->
+      <div class="fc-row">
+        <div class="fc-box green" style="min-width:280px;">📋 PatientContext Schema<span class="sub">demographics · conditions · meds · labs · prompt</span></div>
+      </div>
+      <div class="fc-label">↓ orchestrator fans out ↓</div>
+
+      <!-- Agents -->
+      <div class="fc-row">
+        <div class="fc-box blue">🧠 Clinical Agent<span class="sub">GPT-4o / MedGemma</span></div>
+        <div class="fc-box green">📚 Literature Agent<span class="sub">GPT-4o-mini + RAG</span></div>
+        <div class="fc-box orange">🛡️ Safety Agent<span class="sub">DrugBank / RxNorm</span></div>
+      </div>
+      <div class="fc-label">↓ parallel outputs → debate ↓</div>
+
+      <!-- Debate -->
+      <div class="fc-row" style="gap:0;">
+        <div class="fc-box orange">Round 1<span class="sub">Init Outputs</span></div>
+        <div class="fc-arrow-h"></div>
+        <div class="fc-box orange">Round 2<span class="sub">Critic Review</span></div>
+        <div class="fc-arrow-h"></div>
+        <div class="fc-box orange">Round 3<span class="sub">Consensus</span></div>
+      </div>
+      <div class="fc-label">↓ to validation ↓</div>
+
+      <!-- Validator -->
+      <div class="fc-row">
+        <div class="fc-box warn" style="min-width:240px;">✅ Validator Agent<span class="sub">Schema · Safety · MUC · Guardrails AI</span></div>
+      </div>
+      <div class="fc-label">↓ three output paths ↓</div>
+
+      <!-- Outputs -->
+      <div class="fc-row">
+        <div class="fc-box green">📝 SOAP Note<span class="sub">Structured Export</span></div>
+        <div class="fc-box blue">👨‍⚕️ Human Loop<span class="sub">Doctor Edit → Re-debate</span></div>
+        <div class="fc-box">🔍 Obs Logs<span class="sub">LangSmith Trace</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== EXTRA FEATURES ====== -->
+<div class="section-divider"></div>
+<section id="features">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">05 — Supplementary Systems</div>
+      <h2>Extra <em>Features</em></h2>
+      <p class="section-desc">Dedicated subsystems that extend ClinicalPilot beyond core diagnostics — emergency triage, medication safety, and imaging classification.</p>
+    </div>
+
+    <div class="features-grid">
+
+      <!-- EMERGENCY MODE -->
+      <div class="feature-card red-theme">
+        <div class="feature-card-header">
+          <div class="feature-icon-lg red">🚨</div>
+          <div>
+            <h3>Emergency Mode</h3>
+            <p>A dedicated screen with a big red button, always accessible. Designed for speed — voice or text input only, no EHR upload. Bypasses the debate layer entirely.</p>
+          </div>
+        </div>
+        <div class="feature-card-body">
+          <ul class="feature-bullets">
+            <li>Voice or text input only — no EHR upload (speed is the point)</li>
+            <li>Bypasses debate layer — Orchestrator goes direct to Clinical + Safety agents in parallel</li>
+            <li>Output in under 5 seconds: top 3 differentials, immediate red flags, call-to-action</li>
+            <li>Tuned specifically on emergency triage logic (ESI scoring, time-critical conditions)</li>
+            <li>Designed for paramedics in field, triage nurses, on-call physicians at 3 AM</li>
+          </ul>
+          <div class="feature-use-case">
+            <div class="uc-label">How it works</div>
+            Orchestrator receives urgent input → skips debate layer → fans out to Clinical Agent + Safety Agent only → returns top 3 differentials with red flags in &lt;5s. No literature lookup, no consensus rounds. Speed over completeness.
+          </div>
+        </div>
+      </div>
+
+      <!-- MEDICAL ERROR PREVENTION -->
+      <div class="feature-card purple-theme">
+        <div class="feature-card-header">
+          <div class="feature-icon-lg purple">💊</div>
+          <div>
+            <h3>Medical Error Prevention Panel</h3>
+            <p>Runs as a persistent sidebar on every case, not just drug-specific queries. Automatically extracts medications from the prompt or EHR and runs comprehensive safety checks.</p>
+          </div>
+        </div>
+        <div class="feature-card-body">
+          <div class="flag-cards">
+            <div class="flag-card severe">
+              <h5>Drug-Drug Interactions</h5>
+              <p>Severity tiers: contraindicated, major, moderate. Each flag shows the problem, mechanism in plain language, and recommendation.</p>
+            </div>
+            <div class="flag-card major">
+              <h5>Drug-Disease Contraindications</h5>
+              <p>NSAIDs in CKD, metformin in contrast dye cases, and other condition-specific flags caught automatically.</p>
+            </div>
+            <div class="flag-card moderate">
+              <h5>Dosing Alerts</h5>
+              <p>Renal and hepatic adjustment needed — flags when patient labs indicate impaired clearance pathways.</p>
+            </div>
+            <div class="flag-card info">
+              <h5>Population Flags</h5>
+              <p>Pregnancy, pediatric, and elderly population-specific warnings surfaced automatically from context.</p>
+            </div>
+          </div>
+          <div class="feature-use-case">
+            <div class="uc-label">Output format per flag</div>
+            Each flag card displays: <strong>the problem</strong> (what's wrong), <strong>the mechanism</strong> (explained in plain language a clinician can quickly verify), and <strong>the recommendation</strong> (what to do about it).
+          </div>
+        </div>
+      </div>
+
+      <!-- IMAGING CLASSIFIER -->
+      <div class="feature-card blue-theme">
+        <div class="feature-card-header">
+          <div class="feature-icon-lg blue">🫁</div>
+          <div>
+            <h3>Imaging Classifier <span style="font-weight:400;color:var(--text-muted);font-size:0.82em;">— Bonus Demo Feature</span></h3>
+            <p>Upload a chest X-ray or CT scan image to a CNN-based classifier that feeds results directly into the EHR Agent's context, influencing the differential diagnosis.</p>
+          </div>
+        </div>
+        <div class="feature-card-body">
+          <ul class="feature-bullets">
+            <li>Upload chest X-ray or CT scan images directly through the interface</li>
+            <li>CNN-based classifier (pre-trained model — no training from scratch required)</li>
+            <li>Detects: pneumonia, pleural effusion, cardiomegaly, pneumothorax</li>
+            <li>Results feed into the Clinical Agent's context → influences differential diagnosis</li>
+            <li>Visual AI that's actually integrated into the pipeline, not bolted on</li>
+          </ul>
+          <div class="feature-use-case">
+            <div class="uc-label">Integration point</div>
+            Image upload → pre-trained CNN classifier → structured findings (e.g., "bilateral infiltrates suggestive of pneumonia, confidence 0.87") → appended to PatientContext → Clinical Agent incorporates into differential ranking.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ====== TECH STACK ====== -->
+<div class="section-divider"></div>
+<section id="stack">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">06 — Technology Stack</div>
+      <h2>Full Tech <em>Stack</em></h2>
+      <p class="section-desc">Carefully selected tools balancing speed-to-build, clinical accuracy, and production reliability. Each has a tested fallback.</p>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-category">LLM / Inference</div>
+        <h4>Primary Model</h4>
+        <div class="stack-primary">OpenAI GPT-4o</div>
+        <div class="stack-alt">Alt: MedGemma-2-9b via Ollama / vLLM · 27B for high-GPU</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Agent Framework</div>
+        <h4>Orchestration</h4>
+        <div class="stack-primary">LangChain + LangGraph</div>
+        <div class="stack-alt">Alt: Pure Python + Pydantic + asyncio.gather()</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Vector Store / RAG</div>
+        <h4>Embedding & Retrieval</h4>
+        <div class="stack-primary">ChromaDB</div>
+        <div class="stack-alt">Alt: Pinecone · Weaviate</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">PHI Anonymization</div>
+        <h4>De-identification</h4>
+        <div class="stack-primary">Microsoft Presidio</div>
+        <div class="stack-alt">Alt: Gretel.ai synthetic data · Manual regex fallback</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Document Parsing</div>
+        <h4>PDF / EHR Ingestion</h4>
+        <div class="stack-primary">Unstructured.io</div>
+        <div class="stack-alt">Alt: PyPDF2 (fallback) · LlamaIndex loaders</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Observability</div>
+        <h4>Tracing & Logging</h4>
+        <div class="stack-primary">LangSmith (free tier)</div>
+        <div class="stack-alt">Alt: Langfuse (open source) · Arize Phoenix</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Safety Database</div>
+        <h4>Drug Interaction Checks</h4>
+        <div class="stack-primary">DrugBank Open Data</div>
+        <div class="stack-alt">Alt: RxNorm NLM · FDA Open API</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Literature APIs</div>
+        <h4>Evidence Retrieval</h4>
+        <div class="stack-primary">PubMed E-utilities</div>
+        <div class="stack-alt">Alt: Europe PMC API · BioC API · BioPython Entrez</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-category">Output Validation</div>
+        <h4>Schema & Guardrails</h4>
+        <div class="stack-primary">Guardrails AI + Pydantic</div>
+        <div class="stack-alt">No hallucinated meds · ≥2 differentials · Explicit safety flags</div>
+      </div>
+    </div>
+
+    <div style="margin-top:2rem;background:var(--white);border:1px solid var(--border-light);border-radius:var(--radius);padding:2rem;box-shadow:var(--shadow-sm);">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.65rem;font-weight:600;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:0.75rem;">Integration Pattern — Presidio + Pydantic</div>
+      <div class="code-block">
+<span class="code-comment"># Anonymization integration pattern (Presidio)</span>
+<span class="code-key">from</span> presidio_analyzer <span class="code-key">import</span> <span class="code-fn">AnalyzerEngine</span>
+<span class="code-key">from</span> presidio_anonymizer <span class="code-key">import</span> <span class="code-fn">AnonymizerEngine</span>
+
+<span class="code-comment"># Configure FHIR-specific entity recognizers</span>
+analyzer = <span class="code-fn">AnalyzerEngine</span>()  <span class="code-comment"># Detects: names, DOB, MRN, addresses</span>
+anonymizer = <span class="code-fn">AnonymizerEngine</span>()  <span class="code-comment"># Replaces with [PERSON], [DATE], etc.</span>
+
+<span class="code-comment"># PatientContext schema (Pydantic)</span>
+<span class="code-key">class</span> <span class="code-fn">PatientContext</span>(BaseModel):
+    demographics: <span class="code-fn">Dict</span>
+    conditions: <span class="code-fn">List</span>[str]
+    medications: <span class="code-fn">List</span>[str]
+    labs_vitals: <span class="code-fn">Dict</span>
+    current_prompt: str
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== MUC ====== -->
+<div class="section-divider"></div>
+<section>
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">07 — Uncertainty Quantification</div>
+      <h2>Medical Uncertainty <em>Scoring</em></h2>
+      <p class="section-desc">Every differential diagnosis carries a confidence tier displayed in the UI. Low-certainty outputs are automatically flagged for physician review.</p>
+    </div>
+
+    <div class="muc-grid">
+      <div class="muc-card high">
+        <div class="muc-icon">🟢</div>
+        <h4>High Confidence</h4>
+        <p>Multiple clinical guidelines agree. Strong, reproducible evidence base. Safe to present as primary recommendation.</p>
+      </div>
+      <div class="muc-card medium">
+        <div class="muc-icon">🟡</div>
+        <h4>Medium Confidence</h4>
+        <p>Guidelines differ across sources, or evidence base is limited. Physician should review supporting literature before acting.</p>
+      </div>
+      <div class="muc-card low">
+        <div class="muc-icon">🔴</div>
+        <h4>Low Confidence</h4>
+        <p>Rare clinical presentation, contradictory literature, or novel drug interaction. Mandatory human-in-the-loop review triggered.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== BUILD ORDER ====== -->
+<div class="section-divider"></div>
+<section id="build">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">08 — Build Priority</div>
+      <h2>1-Day Build <em>Order</em></h2>
+      <p class="section-desc">Prioritized by clinical impact and liability protection. Each step builds on the last. The debate layer is the differentiator — ship it early.</p>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-num">1</div>
+        <div class="timeline-content">
+          <h4>Input Gateway + Anonymizer</h4>
+          <p>Presidio integration. FHIR endpoint + PDF upload. All PHI scrubbed before LLM contact. Non-negotiable foundation.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">2</div>
+        <div class="timeline-content">
+          <h4>Clinical Agent + Few-Shot Prompting</h4>
+          <p>Biggest immediate impact. PatientContext → GPT-4o → ranked differentials + SOAP draft. Chain-of-thought examples critical.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">3</div>
+        <div class="timeline-content">
+          <h4>Debate Layer + Critic Agent</h4>
+          <p>The "wow factor" differentiator. LangGraph state machine. 2–3 fixed rounds. dissent_log captures all challenges.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">4</div>
+        <div class="timeline-content">
+          <h4>Safety Agent + DrugBank</h4>
+          <p>Liability protection. DrugBank CSV + RxNorm. Structured severity-rated warnings. Renal/hepatic dosing adjustments.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">5</div>
+        <div class="timeline-content">
+          <h4>Literature Agent + PubMed RAG</h4>
+          <p>BioPython Entrez + ChromaDB retrieval. Europe PMC fallback. Evidence snippets with confidence levels.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">6</div>
+        <div class="timeline-content">
+          <h4>Observability — LangSmith Tracing</h4>
+          <p>Trace every agent call. Token usage per agent. Latency breakdown. Debate round visualization. Free tier sufficient for dev.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">7</div>
+        <div class="timeline-content">
+          <h4>Human-in-the-Loop UI</h4>
+          <p>Doctor edits SOAP → feeds back to Critic Agent → triggers max 1 additional debate round. Prevents infinite revision loops.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-num">8</div>
+        <div class="timeline-content">
+          <h4>MUC Confidence Scoring</h4>
+          <p>🟢/🟡/🔴 per differential. Threshold-based auto-flagging. Displayed prominently in the physician UI.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== FOOTER ====== -->
+<div class="section-divider"></div>
+<footer>
+  <strong>ClinicalPilot</strong> — Multi-Agent Clinical Decision Support · Final Architecture v1.0
+  <div class="footer-techs">GPT-4o · MedGemma · LangGraph · Presidio · ChromaDB · DrugBank · PubMed · LangSmith</div>
+</footer>
+
+</body>
+</html>
