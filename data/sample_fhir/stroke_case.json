@@ -1,0 +1,111 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "sample-patient-2",
+        "name": [{ "given": ["Margaret"], "family": "Smith" }],
+        "gender": "female",
+        "birthDate": "1952-08-22"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-afib",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "49436004", "display": "Atrial fibrillation" }],
+          "text": "Atrial fibrillation"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-chf",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "42343007", "display": "Congestive heart failure" }],
+          "text": "CHF (EF 35%)"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-ckd",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "431855005", "display": "Chronic kidney disease stage 3" }],
+          "text": "CKD Stage 3"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-warfarin",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "medicationCodeableConcept": { "text": "Warfarin 5mg" },
+        "dosageInstruction": [{ "text": "5mg daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-metoprolol",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "medicationCodeableConcept": { "text": "Metoprolol 50mg" },
+        "dosageInstruction": [{ "text": "50mg BID" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-furosemide",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "medicationCodeableConcept": { "text": "Furosemide 40mg" },
+        "dosageInstruction": [{ "text": "40mg daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-inr",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "6301-6", "display": "INR" }]
+        },
+        "valueQuantity": { "value": 2.8, "unit": "" },
+        "effectiveDateTime": "2024-01-15T10:30:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-creatinine-2",
+        "subject": { "reference": "Patient/sample-patient-2" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "2160-0", "display": "Creatinine" }]
+        },
+        "valueQuantity": { "value": 1.8, "unit": "mg/dL" },
+        "effectiveDateTime": "2024-01-15T10:30:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "id": "allergy-pcn",
+        "patient": { "reference": "Patient/sample-patient-2" },
+        "code": { "text": "Penicillin" },
+        "reaction": [{ "severity": "severe" }]
+      }
+    }
+  ]
+}

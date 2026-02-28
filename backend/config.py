@@ -1,0 +1,73 @@
+"""
+ClinicalPilot Configuration — loads .env and provides typed settings.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+# Project root = parent of /backend
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    # ── LLM ──────────────────────────────────────────────
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+    openai_fast_model: str = "gpt-4o-mini"
+
+    use_local_llm: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "medgemma2:9b"
+
+    # ── PubMed / NCBI ───────────────────────────────────
+    ncbi_email: str = ""
+    ncbi_api_key: str = ""
+
+    # ── Observability ────────────────────────────────────
+    langsmith_api_key: str = ""
+    langchain_tracing_v2: bool = False
+    langchain_project: str = "clinicalpilot"
+
+    # ── FDA ──────────────────────────────────────────────
+    fda_api_key: str = ""
+
+    # ── App Settings ─────────────────────────────────────
+    log_level: str = "INFO"
+    cors_origins: list[str] = ["*"]
+    emergency_timeout_sec: int = 5
+    max_debate_rounds: int = 3
+
+    # ── Data Paths ───────────────────────────────────────
+    lancedb_path: str = "data/lancedb"
+    drugbank_csv_path: str = "data/drugbank/drugbank_vocabulary.csv"
+
+    # ── SpaCy ────────────────────────────────────────────
+    spacy_model: str = "en_core_web_lg"
+
+    model_config = {
+        "env_file": str(PROJECT_ROOT / ".env"),
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+    @property
+    def lancedb_abs_path(self) -> Path:
+        p = Path(self.lancedb_path)
+        return p if p.is_absolute() else PROJECT_ROOT / p
+
+    @property
+    def drugbank_abs_path(self) -> Path:
+        p = Path(self.drugbank_csv_path)
+        return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()

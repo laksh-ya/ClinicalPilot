@@ -1,0 +1,10 @@
+patient_id,age,gender,condition,medication,dosage,lab_name,lab_value,lab_unit,allergy,vital_name,vital_value
+P001,55,male,Hypertension,Amlodipine,10mg daily,Creatinine,1.2,mg/dL,,BP,145/90
+P001,55,male,Type 2 Diabetes,Metformin,1000mg BID,HbA1c,8.2,%,,HR,78
+P001,55,male,Hyperlipidemia,Atorvastatin,80mg daily,LDL,165,mg/dL,Sulfa drugs,Temp,98.4
+P001,55,male,Obesity,,,BMI,34.2,kg/m2,,,
+P001,55,male,,,,Glucose,210,mg/dL,,,
+P002,68,female,COPD,Tiotropium,18mcg daily,WBC,12.5,K/uL,,SpO2,91
+P002,68,female,CHF,Carvedilol,25mg BID,BNP,850,pg/mL,Penicillin,BP,138/85
+P002,68,female,,Furosemide,40mg daily,Creatinine,1.5,mg/dL,,RR,22
+P002,68,female,,Lisinopril,10mg daily,K,5.2,mEq/L,,HR,92

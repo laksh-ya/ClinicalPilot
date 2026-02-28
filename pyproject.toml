@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "clinicalpilot"
+version = "1.0.0"
+description = "Multi-agent clinical decision support system with debate-driven reasoning"
+requires-python = ">=3.10"
+readme = "README.md"

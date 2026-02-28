@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
+<meta name="theme-color" content="#09090b">
+<title>ClinicalPilot — AI Clinical Decision Support</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚕️</text></svg>">
+
+<!-- Fonts: DM Sans (display), Inter (body), IBM Plex Mono (code) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- React 18 + Babel -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Mermaid for architecture diagrams -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+<!-- html2pdf for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<!-- GSAP for pro animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{
+  fontFamily:{display:['"DM Sans"','system-ui','sans-serif'],body:['"Inter"','system-ui','sans-serif'],mono:['"IBM Plex Mono"','monospace']},
+  colors:{
+    zinc:{950:'#09090b',900:'#18181b',800:'#27272a',700:'#3f3f46',600:'#52525b',500:'#71717a',400:'#a1a1aa',300:'#d4d4d8',200:'#e4e4e7',100:'#f4f4f5',50:'#fafafa'},
+    brand:{50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8'},
+    emerald:{400:'#34d399',500:'#10b981',600:'#059669'},
+    rose:{400:'#fb7185',500:'#f43f5e',600:'#e11d48'},
+    amber:{400:'#fbbf24',500:'#f59e0b'},
+    violet:{400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed'},
+  },
+  borderRadius:{xl:'12px','2xl':'16px','3xl':'20px','4xl':'24px'},
+}}}
+</script>
+
+<style>
+/* ── Reset & Base ─────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#fafafa;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ── Scrollbar ────────────────────────────────── */
+*{scrollbar-width:thin;scrollbar-color:#27272a transparent}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#52525b}
+::selection{background:rgba(59,130,246,.25);color:#fff}
+
+/* ── Splash ───────────────────────────────────── */
+#splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#09090b;transition:opacity .6s,visibility .6s}
+#splash.hide{opacity:0;visibility:hidden;pointer-events:none}
+#splash .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;animation:splashPulse 1.5s ease-in-out infinite}
+#splash .bar{width:120px;height:3px;background:#27272a;border-radius:99px;margin-top:24px;overflow:hidden}
+#splash .bar-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:99px;animation:splashBar 1.8s ease-in-out forwards}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes splashBar{0%{width:0}100%{width:100%}}
+
+/* ── Animations ───────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideRight{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes pulse2{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.3)}50%{box-shadow:0 0 0 8px rgba(59,130,246,0)}}
+@keyframes micRing{0%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}100%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+@keyframes gentleBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+.anim-fade-up{animation:fadeUp .5s cubic-bezier(.22,1,.36,1) both}
+.anim-fade-in{animation:fadeIn .4s ease both}
+.anim-slide-r{animation:slideRight .4s cubic-bezier(.22,1,.36,1) both}
+.anim-scale-in{animation:scaleIn .35s cubic-bezier(.22,1,.36,1) both}
+.anim-d1{animation-delay:.06s}.anim-d2{animation-delay:.12s}.anim-d3{animation-delay:.18s}.anim-d4{animation-delay:.24s}.anim-d5{animation-delay:.3s}
+
+/* ── Components ───────────────────────────────── */
+.spinner{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.1);border-top-color:#60a5fa;border-radius:50%;animation:spin .55s linear infinite}
+.spinner-sm{width:12px;height:12px;border-width:2px}
+
+.shimmer-bg{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.03) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 2s ease-in-out infinite}
+
+.card-hover{transition:all .2s cubic-bezier(.22,1,.36,1)}
+.card-hover:hover{transform:translateY(-1px);box-shadow:0 4px 24px rgba(0,0,0,.3);border-color:rgba(59,130,246,.15)}
+
+/* Mic */
+.mic-btn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1.5px solid #3f3f46;background:#18181b;color:#a1a1aa;cursor:pointer;transition:all .2s}
+.mic-btn:hover{border-color:#60a5fa;color:#60a5fa;background:#1e293b}
+.mic-btn.active{border-color:#ef4444;background:rgba(239,68,68,.1);color:#ef4444;animation:micRing 1.2s ease-out infinite}
+
+/* ESI */
+.esi-1{background:#dc2626}.esi-2{background:#ea580c}.esi-3{background:#d97706}.esi-4{background:#16a34a}.esi-5{background:#2563eb}
+
+/* Tab pill */
+.tab-pill{transition:all .2s}.tab-pill[data-active="true"]{background:rgba(59,130,246,.12);color:#60a5fa;border-color:rgba(59,130,246,.25)}
+
+/* Report paper */
+.report-paper{background:#fafafa;color:#18181b;border-radius:12px;font-family:'Inter',sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.12)}
+.report-paper *{color:#18181b}
+.report-paper .section-label{color:#52525b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.report-paper .bar-s{border-left:3px solid #2563eb}.report-paper .bar-o{border-left:3px solid #059669}.report-paper .bar-a{border-left:3px solid #d97706}.report-paper .bar-p{border-left:3px solid #7c3aed}
+
+/* Print / PDF */
+@media print{body{background:#fff !important}#splash,.no-print{display:none !important}.report-paper{box-shadow:none;border:1px solid #e4e4e7}}
+.pdf-target .report-paper{box-shadow:none}
+
+/* Mobile safe area */
+@supports(padding:env(safe-area-inset-bottom)){.safe-b{padding-bottom:env(safe-area-inset-bottom)}}
+
+/* Mermaid */
+.mermaid{background:transparent !important}
+.mermaid svg{max-width:100%!important}
+</style>
+</head>
+
+<body class="dark">
+<!-- Splash Screen -->
+<div id="splash">
+  <div class="logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg></div>
+  <p style="margin-top:16px;font-family:'DM Sans';font-size:18px;font-weight:700;color:#fafafa;letter-spacing:-.02em">ClinicalPilot</p>
+  <p style="margin-top:4px;font-size:12px;color:#71717a">Loading clinical workspace…</p>
+  <div class="bar"><div class="bar-fill"></div></div>
+</div>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback,createContext,useContext,useMemo,memo,useReducer}=React;
+const API=window.location.origin;
+
+/* ════════════════════════════════════════════════════════
+   ICONS — inline SVG (zero dependencies)
+   ════════════════════════════════════════════════════════ */
+const _i={
+  stethoscope:<><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></>,
+  zap:<polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/>,
+  microscope:<><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></>,
+  workflow:<><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></>,
+  wrench:<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>,
+  play:<polygon points="6 3 20 12 6 21 6 3"/>,
+  mic:<><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></>,
+  copy:<><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
+  edit:<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>,
+  check:<polyline points="20 6 9 17 4 12"/>,
+  x:<><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></>,
+  alertTri:<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></>,
+  shield:<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="M12 8v4"/><path d="M12 16h.01"/></>,
+  fileText:<><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></>,
+  target:<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>,
+  scale:<><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></>,
+  terminal:<><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></>,
+  barChart:<><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></>,
+  book:<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>,
+  userCheck:<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></>,
+  refresh:<><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></>,
+  upload:<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></>,
+  extLink:<><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></>,
+  clock:<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+  activity:<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
+  trash:<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+  pill:<><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></>,
+  calculator:<><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></>,
+  search:<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>,
+  brain:<><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></>,
+  share:<><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></>,
+  layers:<><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
+  cpu:<><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></>,
+  download:<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></>,
+  printer:<><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></>,
+  messageCircle:<><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></>,
+  send:<><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>,
+  heart:<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>,
+  menu:<><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></>,
+  chevRight:<polyline points="9 18 15 12 9 6"/>,
+  info:<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>,
+  globe:<><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></>,
+  sparkles:<><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></>,
+};
+function Ic({name,size=18,className='',style={}}){return <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>{_i[name]}</svg>}
+
+/* ════════════════════════════════════════════════════════
+   TOAST
+   ════════════════════════════════════════════════════════ */
+const ToastCtx=createContext();
+function ToastProvider({children}){
+  const[ts,set]=useState([]);
+  const add=useCallback((msg,type='info')=>{const id=Date.now()+Math.random();set(p=>[...p,{id,msg,type}]);setTimeout(()=>set(p=>p.filter(x=>x.id!==id)),4200)},[]);
+  const cls={error:'border-rose-500/40 bg-rose-500/10 text-rose-300',success:'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',warning:'border-amber-500/40 bg-amber-500/10 text-amber-300',info:'border-brand-500/40 bg-brand-500/10 text-brand-300'};
+  return <ToastCtx.Provider value={add}>{children}
+    <div className="fixed bottom-6 right-6 z-[300] space-y-2 max-w-sm pointer-events-none">
+      {ts.map(t=><div key={t.id} className={`pointer-events-auto anim-fade-up px-4 py-3 rounded-xl border font-medium text-sm backdrop-blur-md ${cls[t.type]||cls.info}`}>{t.msg}</div>)}
+    </div>
+  </ToastCtx.Provider>;
+}
+const useToast=()=>useContext(ToastCtx);
+
+/* ════════════════════════════════════════════════════════
+   MIC HOOK
+   ════════════════════════════════════════════════════════ */
+function useMic(onFinal){
+  const[on,setOn]=useState(false);
+  const ref=useRef(null);
+  const supported=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  const toggle=useCallback(()=>{
+    if(on){ref.current?.stop();setOn(false);return}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return;
+    const r=new SR();r.continuous=true;r.interimResults=true;r.lang='en-US';
+    r.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++){t+=e.results[i][0].transcript;if(e.results[i].isFinal)onFinal(e.results[i][0].transcript)}};
+    r.onerror=()=>setOn(false);r.onend=()=>setOn(false);
+    r.start();ref.current=r;setOn(true);
+  },[on,onFinal]);
+  return{on,toggle,supported};
+}
+
+/* ════════════════════════════════════════════════════════
+   MIC BUTTON (prominent, outside textarea)
+   ════════════════════════════════════════════════════════ */
+function MicBtn({onTranscript,className=''}){
+  const t=useToast();
+  const{on,toggle,supported}=useMic(useCallback(text=>{onTranscript(text)},[onTranscript]));
+  if(!supported)return null;
+  return <button onClick={()=>{toggle();if(!on)t('Listening — speak now','info')}} className={`mic-btn ${on?'active':''} ${className}`} title={on?'Stop dictation':'Voice input'}>
+    <Ic name="mic" size={20}/>
+  </button>;
+}
+
+/* ════════════════════════════════════════════════════════
+   SAMPLE FHIR BUNDLE
+   ════════════════════════════════════════════════════════ */
+const SAMPLE_FHIR={"resourceType":"Bundle","type":"collection","entry":[{"resource":{"resourceType":"Patient","name":[{"given":["John"],"family":"Doe"}],"gender":"male","birthDate":"1978-06-15"}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"38341003","display":"Hypertension"}]},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"44054006","display":"Type 2 Diabetes Mellitus"}]},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Metformin 1000mg BID"}]},"status":"active"}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Lisinopril 20mg daily"}]},"status":"active"}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Atorvastatin 40mg daily"}]},"status":"active"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Blood Pressure"}]},"valueString":"145/92 mmHg"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Heart Rate"}]},"valueString":"78 bpm"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"HbA1c"}]},"valueString":"8.2%"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Creatinine"}]},"valueString":"1.4 mg/dL"}},{"resource":{"resourceType":"AllergyIntolerance","code":{"coding":[{"display":"Penicillin"}]}}}]};
+
+/* ════════════════════════════════════════════════════════
+   CONSTANTS
+   ════════════════════════════════════════════════════════ */
+const SAMPLES=[
+  "45-year-old male presenting to the ED with acute substernal chest pain radiating to his left arm for the past 2 hours. Associated diaphoresis and shortness of breath.\n\nPMH: Hypertension (10 years), Type 2 Diabetes Mellitus (5 years), Hyperlipidemia\nMedications: Metformin 1000mg BID, Lisinopril 20mg daily, Atorvastatin 40mg daily, Aspirin 81mg daily\n\nVitals: BP 160/95, HR 110, RR 22, Temp 98.6°F, SpO2 94% on RA\nLabs: Troponin I 0.82 ng/mL (ref < 0.04), WBC 11.2, Glucose 245, Creatinine 1.1\nECG: ST-elevation in leads V1-V4, reciprocal changes in II, III, aVF\n\nAllergies: Sulfa drugs, Shellfish\nAlert, anxious, clutching chest. Lungs clear bilaterally. S3 gallop noted.",
+  "72-year-old female brought by EMS with sudden onset confusion, right-sided weakness, and slurred speech. Onset 45 min ago.\n\nPMH: Atrial fibrillation (warfarin), CHF (EF 35%), CKD Stage 3\nMedications: Warfarin 5mg daily, Metoprolol 50mg BID, Furosemide 40mg daily\n\nVitals: BP 185/105, HR 88 irregular, RR 18, Temp 98.2°F, SpO2 96%\nLabs: INR 2.8, Glucose 130, Creatinine 1.8\nNIHSS: 14, GCS 13 (E3V4M6)\n\nRight facial droop, right arm drift, unable to lift right leg, dysarthria.\nAllergies: Penicillin",
+  "28-year-old female, 3-day progressive dyspnea, pleuritic chest pain, low-grade fever. Recent 12-hour flight from Australia.\n\nPMH: Combined OCP use, BMI 32\nVitals: BP 118/76, HR 112, RR 24, Temp 100.4°F, SpO2 91% on RA\nLabs: D-dimer 2.4 μg/mL (ref < 0.5), WBC 11.8, Troponin 0.06\n\nLeft calf swelling +2cm, tender. Decreased breath sounds left base.\nAllergies: NKDA",
+];
+
+const PIPELINE_STEPS=[
+  {key:'parsing',label:'Input Parsing',icon:'fileText'},
+  {key:'agents',label:'AI Agents',icon:'brain'},
+  {key:'debate',label:'Debate',icon:'scale'},
+  {key:'synthesis',label:'Synthesis',icon:'sparkles'},
+  {key:'safety_panel',label:'Safety',icon:'shield'},
+];
+
+const CLASSIFIERS=[
+  {id:'lung',name:'Lung Disease',icon:'🫁',desc:'Chest X-ray AI classification',url:'https://lung-disease-classification.streamlit.app/',color:'#3b82f6'},
+  {id:'chest',name:'Chest Disease',icon:'🫀',desc:'Comprehensive chest detection',url:'https://caryaai.streamlit.app/',color:'#8b5cf6'},
+  {id:'retina',name:'Retina Analyser',icon:'👁️',desc:'Diabetic retinopathy detection',url:'https://retinopathy-detection.streamlit.app/',color:'#10b981'},
+  {id:'skin',name:'Skin Cancer',icon:'🔬',desc:'Lesion & melanoma classification',url:'https://skincancer-detection.streamlit.app/',color:'#f59e0b'},
+];
+
+const ARCH_DIAGRAM=`graph TB
+  subgraph Input["📥 Input Layer"]
+    direction TB
+    A1[Text / Voice]
+    A2[FHIR R4 Bundle]
+    A3[PDF / CSV EHR]
+    A4[Presidio Anonymizer]
+    A1-->A4; A2-->A4; A3-->A4
+  end
+  subgraph Agents["🧠 Multi-Agent System"]
+    direction TB
+    B1["🩺 Clinical Agent"]
+    B2["📚 Literature Agent"]
+    B3["🛡️ Safety Agent"]
+    B4["⚖️ Critic Agent"]
+    B1-->B4; B2-->B4; B3-->B4
+  end
+  subgraph Output["📋 Output"]
+    C1[SOAP Note]; C2[Differentials]; C3[Safety Panel]; C4[Risk Scores]
+  end
+  A4-->B1; A4-->B2; A4-->B3
+  B4-->C1; B4-->C2; B4-->C3; B4-->C4
+  subgraph External["🌐 External APIs"]
+    E1[PubMed]; E2[FDA]; E3[RxNorm]; E4[DrugBank]
+  end
+  B2-.->E1; B3-.->E2; B3-.->E3; B3-.->E4
+  style Input fill:#18181b,stroke:#3b82f6,color:#fafafa
+  style Agents fill:#18181b,stroke:#8b5cf6,color:#fafafa
+  style Output fill:#18181b,stroke:#10b981,color:#fafafa
+  style External fill:#18181b,stroke:#f59e0b,color:#fafafa`;
+
+const FLOW_DIAGRAM=`sequenceDiagram
+  participant D as 👨‍⚕️ Doctor
+  participant F as 🖥️ Frontend
+  participant B as ⚙️ Backend
+  participant C as 🩺 Clinical
+  participant L as 📚 Literature
+  participant S as 🛡️ Safety
+  participant K as ⚖️ Critic
+  D->>F: Enter case / dictate
+  F->>B: WebSocket stream
+  B->>B: Anonymize (Presidio)
+  par Parallel Agents
+    B->>C: Clinical reasoning
+    B->>L: PubMed search
+    B->>S: Drug safety
+  end
+  C-->>B: DDx + SOAP draft
+  L-->>B: Evidence + Citations
+  S-->>B: Interactions
+  B->>K: Critic review
+  K-->>B: Consensus
+  B->>B: Synthesize SOAP
+  B-->>F: Stream results
+  F-->>D: Report + Safety
+  Note over D,K: Human feedback re-triggers debate`;
+
+/* ════════════════════════════════════════════════════════
+   NAVBAR
+   ════════════════════════════════════════════════════════ */
+const NAV=[
+  {id:'analysis',label:'Analysis',icon:'stethoscope'},
+  {id:'emergency',label:'Emergency',icon:'zap'},
+  {id:'tools',label:'Tools',icon:'wrench'},
+  {id:'classifiers',label:'Imaging AI',icon:'microscope'},
+  {id:'architecture',label:'Architecture',icon:'workflow'},
+  {id:'chat',label:'AI Assistant',icon:'messageCircle'},
+];
+
+const Navbar=memo(function Navbar({view,setView,online}){
+  const[open,setOpen]=useState(false);
+  return <header className="sticky top-0 z-50 border-b border-zinc-800/80" style={{background:'rgba(9,9,11,.88)',backdropFilter:'blur(16px)'}}>
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      {/* Logo */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'linear-gradient(135deg,#2563eb,#7c3aed)'}}>
+          <Ic name="stethoscope" size={18} className="text-white"/>
+        </div>
+        <div className="hidden sm:block">
+          <h1 className="text-[17px] font-display font-bold tracking-tight text-white leading-none">ClinicalPilot</h1>
+          <p className="text-[10px] text-zinc-500 font-medium mt-0.5">AI Decision Support</p>
+        </div>
+      </div>
+
+      {/* Desktop Nav */}
+      <nav className="hidden lg:flex items-center gap-1">
+        {NAV.map(n=><button key={n.id} onClick={()=>setView(n.id)}
+          className={`tab-pill flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-medium border border-transparent transition-all ${n.id==='emergency'&&view!==n.id?'text-rose-400 hover:text-rose-300':''}`}
+          data-active={view===n.id?'true':'false'}
+          style={view!==n.id?{color:n.id==='emergency'?undefined:'#a1a1aa'}:{}}>
+          <Ic name={n.icon} size={15}/><span>{n.label}</span>
+        </button>)}
+      </nav>
+
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${online?'bg-emerald-400':'bg-rose-400'}`} style={{animation:online?'breathe 2s ease-in-out infinite':'pulse2 1.5s ease-in-out infinite'}}/>
+          <span className="text-[11px] text-zinc-500 font-medium hidden sm:inline">{online?'Online':'Offline'}</span>
+        </div>
+        <button className="lg:hidden p-2 rounded-xl hover:bg-zinc-800/60 text-zinc-400" onClick={()=>setOpen(!open)}><Ic name={open?'x':'menu'} size={20}/></button>
+      </div>
+    </div>
+
+    {/* Mobile menu */}
+    {open&&<div className="lg:hidden border-t border-zinc-800/60 px-4 py-3 space-y-1 anim-fade-up">
+      {NAV.map(n=><button key={n.id} onClick={()=>{setView(n.id);setOpen(false)}}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${view===n.id?'bg-brand-600/15 text-brand-400':'text-zinc-400 hover:text-white hover:bg-zinc-800/40'}`}>
+        <Ic name={n.icon} size={18}/>{n.label}
+      </button>)}
+    </div>}
+  </header>;
+});
+
+/* ════════════════════════════════════════════════════════
+   PIPELINE VISUALIZER — clean, animated
+   ════════════════════════════════════════════════════════ */
+function PipelineViz({steps,msgs}){
+  return <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up">
+    <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-4 font-display">Pipeline Progress</p>
+    <div className="flex items-center justify-between gap-1 mb-4">
+      {PIPELINE_STEPS.map((s,i)=>{
+        const st=steps[s.key]||'pending';
+        const done=st==='done',active=st==='active',err=st==='error';
+        return <React.Fragment key={s.key}>
+          <div className="flex flex-col items-center gap-1.5 flex-1">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500 ${
+              done?'border-emerald-500/50 bg-emerald-500/10':active?'border-brand-500/50 bg-brand-500/10':err?'border-rose-500/50 bg-rose-500/10':'border-zinc-800 bg-zinc-900'
+            }`}>{done?<Ic name="check" size={16} className="text-emerald-400"/>:active?<span className="spinner spinner-sm"/>:err?<Ic name="x" size={14} className="text-rose-400"/>:<Ic name={s.icon} size={15} className="text-zinc-600"/>}</div>
+            <span className={`text-[10px] font-medium text-center leading-tight ${done?'text-emerald-400':active?'text-brand-400':err?'text-rose-400':'text-zinc-600'}`}>{s.label}</span>
+          </div>
+          {i<PIPELINE_STEPS.length-1&&<div className={`h-0.5 flex-1 mt-[-18px] rounded-full transition-all duration-700 ${done?'bg-emerald-500/30':active?'bg-brand-500/20 shimmer-bg':'bg-zinc-800'}`}/>}
+        </React.Fragment>;
+      })}
+    </div>
+    {msgs.length>0&&<div className="border-t border-zinc-800/60 pt-3 max-h-28 overflow-y-auto space-y-1">
+      {msgs.slice(-6).map((m,i)=><div key={i} className="flex items-center gap-2 text-[11px] anim-slide-r font-mono">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.type==='agent'?'bg-violet-400':m.type==='error'?'bg-rose-400':'bg-brand-400'}`} style={{animation:'pulse2 1.5s ease-in-out infinite'}}/>
+        <span className="text-zinc-500">{m.text}</span>
+      </div>)}
+    </div>}
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   REPORT — looks like real clinical paper
+   ════════════════════════════════════════════════════════ */
+const SOAP_SEC=[
+  {key:'subjective',label:'Subjective',tag:'S',bar:'bar-s',accent:'#2563eb'},
+  {key:'objective',label:'Objective',tag:'O',bar:'bar-o',accent:'#059669'},
+  {key:'assessment',label:'Assessment',tag:'A',bar:'bar-a',accent:'#d97706'},
+  {key:'plan',label:'Plan',tag:'P',bar:'bar-p',accent:'#7c3aed'},
+];
+
+function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
+  const[editing,setEditing]=useState(false);
+  const[fbText,setFbText]=useState('');
+  const[fbBusy,setFbBusy]=useState(false);
+  const reportRef=useRef(null);
+  const conf=(soap?.uncertainty||'medium').toLowerCase();
+
+  const handleExportPDF=useCallback(()=>{
+    if(!reportRef.current)return;
+    const opt={margin:[10,10],filename:`ClinicalPilot_Report_${new Date().toISOString().slice(0,10)}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
+    html2pdf().set(opt).from(reportRef.current).save();
+  },[]);
+
+  const handleFeedback=useCallback(async()=>{
+    if(!fbText.trim())return;
+    setFbBusy(true);
+    await onFeedback(fbText);
+    setFbText('');setFbBusy(false);
+  },[fbText,onFeedback]);
+
+  if(!soap)return null;
+
+  const ints=medPanel?.drug_interactions||[];
+  const contras=medPanel?.contraindications||[];
+  const dosing=medPanel?.dosing_alerts||[];
+  const popFlags=medPanel?.population_flags||[];
+  const totalAlerts=ints.length+contras.length+dosing.length+popFlags.length;
+
+  return <div className="space-y-5 anim-fade-up">
+    {/* Action bar */}
+    <div className="flex flex-wrap items-center gap-2 no-print">
+      <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition shadow-lg shadow-brand-600/20">
+        <Ic name="download" size={15}/>Export PDF
+      </button>
+      <button onClick={()=>window.print()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition border border-zinc-700">
+        <Ic name="printer" size={15}/>Print
+      </button>
+      <button onClick={()=>{ const s=soap; const t=`SOAP Note — ClinicalPilot\n${'═'.repeat(40)}\n\nSubjective:\n${s.subjective||'N/A'}\n\nObjective:\n${s.objective||'N/A'}\n\nAssessment:\n${s.assessment||'N/A'}\n\nPlan:\n${s.plan||'N/A'}\n\nUncertainty: ${s.uncertainty||'N/A'}\nGenerated: ${new Date().toISOString()}`; navigator.clipboard.writeText(t); }}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition border border-zinc-700">
+        <Ic name="copy" size={15}/>Copy
+      </button>
+      <button onClick={()=>setEditing(!editing)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition border border-zinc-700">
+        <Ic name="edit" size={15}/>{editing?'Lock':'Edit'}
+      </button>
+    </div>
+
+    {/* ── THE PAPER REPORT ── */}
+    <div ref={reportRef} className="pdf-target">
+      <div className="report-paper p-6 sm:p-10">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b-2 border-zinc-200 pb-5 mb-6">
+          <div>
+            <h2 className="text-2xl font-display font-bold text-zinc-900 tracking-tight">Clinical Assessment Report</h2>
+            <p className="text-sm text-zinc-500 mt-1 font-medium">Generated by ClinicalPilot — Multi-Agent AI Decision Support</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-xs text-zinc-400">Date</p>
+            <p className="text-sm font-semibold text-zinc-700">{new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
+            <span className={`inline-block mt-2 text-[10px] font-bold px-2.5 py-1 rounded-full ${conf==='high'?'bg-emerald-100 text-emerald-700':conf==='low'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700'}`}>
+              {conf.toUpperCase()} CONFIDENCE
+            </span>
+          </div>
+        </div>
+
+        {/* SOAP Sections */}
+        <div className="space-y-5">
+          {SOAP_SEC.map(s=><div key={s.key} className={`${s.bar} pl-5 py-4 rounded-r-lg`} style={{background:`${s.accent}08`}}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{background:s.accent}}>{s.tag}</span>
+              <h3 className="text-sm font-bold uppercase tracking-wide" style={{color:s.accent}}>{s.label}</h3>
+            </div>
+            <div className={`text-[14px] text-zinc-700 leading-[1.7] whitespace-pre-wrap ${editing?'outline outline-2 outline-blue-400/40 rounded-lg p-3 bg-blue-50 cursor-text':''}`}
+              contentEditable={editing} suppressContentEditableWarning>{soap[s.key]||'—'}</div>
+          </div>)}
+        </div>
+
+        {/* Differentials */}
+        {soap.differentials?.length>0&&<div className="mt-8 pt-6 border-t-2 border-zinc-200">
+          <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide mb-4">Differential Diagnoses</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b-2 border-zinc-200">
+                <th className="text-left py-2 pr-4 text-zinc-500 font-semibold text-xs uppercase">#</th>
+                <th className="text-left py-2 pr-4 text-zinc-500 font-semibold text-xs uppercase">Diagnosis</th>
+                <th className="text-left py-2 pr-4 text-zinc-500 font-semibold text-xs uppercase">Likelihood</th>
+                <th className="text-left py-2 text-zinc-500 font-semibold text-xs uppercase">Reasoning</th>
+              </tr></thead>
+              <tbody>{soap.differentials.map((d,i)=><tr key={i} className="border-b border-zinc-100">
+                <td className="py-3 pr-4 text-zinc-400 font-mono text-xs">{i+1}</td>
+                <td className="py-3 pr-4 font-semibold text-zinc-800">{d.diagnosis||d.name}</td>
+                <td className="py-3 pr-4"><span className={`text-xs font-bold px-2 py-0.5 rounded ${(d.likelihood||'').toLowerCase().includes('most')||d.confidence==='high'?'bg-emerald-100 text-emerald-700':d.confidence==='low'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700'}`}>{d.likelihood||d.confidence}</span></td>
+                <td className="py-3 text-zinc-600 text-xs">{d.reasoning}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </div>}
+
+        {/* Risk Scores */}
+        {soap.risk_scores&&Object.keys(soap.risk_scores).length>0&&<div className="mt-8 pt-6 border-t-2 border-zinc-200">
+          <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide mb-4">Risk Scoring</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Object.entries(soap.risk_scores).map(([k,v])=><div key={k} className="flex items-center justify-between bg-zinc-50 rounded-xl px-4 py-3 border border-zinc-200">
+              <span className="text-sm font-medium text-zinc-700">{k}</span>
+              <span className="text-sm font-bold font-mono text-blue-700">{v}</span>
+            </div>)}
+          </div>
+        </div>}
+
+        {/* Safety Panel */}
+        {totalAlerts>0&&<div className="mt-8 pt-6 border-t-2 border-zinc-200">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></span>
+            <h3 className="text-sm font-bold text-rose-700 uppercase tracking-wide">Safety Alerts ({totalAlerts})</h3>
+          </div>
+          {ints.length>0&&<div className="mb-4">
+            <p className="text-xs font-bold text-rose-600 mb-2">Drug Interactions</p>
+            {ints.map((it,i)=><div key={i} className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-2 text-xs">
+              <div className="flex justify-between"><span className="font-bold text-rose-800">{it.drug_a} × {it.drug_b}</span><span className="font-bold text-rose-600 uppercase text-[10px]">{it.severity}</span></div>
+              {it.description&&<p className="text-rose-700 mt-1">{it.description}</p>}
+              {it.recommendation&&<p className="text-emerald-700 mt-1 font-medium">→ {it.recommendation}</p>}
+            </div>)}
+          </div>}
+          {contras.length>0&&<div className="mb-4"><p className="text-xs font-bold text-orange-600 mb-2">Contraindications</p>
+            {contras.map((it,i)=><div key={i} className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-2 text-xs">
+              <span className="font-bold text-orange-800">{it.drug}</span> — <span className="text-orange-700">{it.disease}</span>
+              {it.recommendation&&<p className="text-emerald-700 mt-1">→ {it.recommendation}</p>}
+            </div>)}
+          </div>}
+          {dosing.length>0&&<div className="mb-4"><p className="text-xs font-bold text-amber-600 mb-2">Dosing Alerts</p>
+            {dosing.map((it,i)=><div key={i} className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-2 text-xs">
+              <span className="font-bold text-amber-800">{it.drug}</span>{it.alert_type&&<span className="text-amber-600 ml-1">[{it.alert_type}]</span>}
+              {(it.description||it.message)&&<p className="text-amber-700 mt-1">{it.description||it.message}</p>}
+            </div>)}
+          </div>}
+          {popFlags.length>0&&<div><p className="text-xs font-bold text-blue-600 mb-2">Population Flags</p>
+            {popFlags.map((it,i)=><div key={i} className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2 text-xs">
+              <span className="font-bold text-blue-800">{it.drug}</span> — <span className="text-blue-700">{it.population}</span>
+            </div>)}
+          </div>}
+        </div>}
+
+        {/* Citations */}
+        {soap.citations?.length>0&&<div className="mt-8 pt-6 border-t-2 border-zinc-200">
+          <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide mb-3">Evidence & Citations</h3>
+          <ol className="space-y-1.5 list-decimal list-inside">{soap.citations.map((c,i)=><li key={i} className="text-xs text-zinc-600 leading-relaxed">{c}</li>)}</ol>
+        </div>}
+
+        {/* Debate Summary */}
+        <div className="mt-8 pt-6 border-t-2 border-zinc-200">
+          <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wide mb-3">Multi-Agent Debate Summary</h3>
+          <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-wrap">{soap.debate_summary||debate?.summary||'—'}</p>
+          {(soap.dissent_log||debate?.dissent_log||[]).length>0&&<div className="mt-3 flex flex-wrap gap-1.5">{(soap.dissent_log||debate.dissent_log).map((d,i)=><span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">{d}</span>)}</div>}
+        </div>
+
+        {/* Metadata */}
+        <div className="mt-8 pt-4 border-t border-zinc-200 flex flex-wrap gap-x-8 gap-y-2 text-[10px] text-zinc-400">
+          {debate?.round_number&&<span>Debate Rounds: {debate.round_number}</span>}
+          {debate?.final_consensus!=null&&<span>Consensus: {debate.final_consensus?'Reached':'Needs Review'}</span>}
+          {soap.model_used&&<span>Model: {soap.model_used}</span>}
+          {soap.latency_ms>0&&<span>Latency: {(soap.latency_ms/1000).toFixed(1)}s</span>}
+          {soap.total_tokens>0&&<span>Tokens: {soap.total_tokens}</span>}
+          <span>ClinicalPilot v2.0 — For research & educational use only</span>
+        </div>
+      </div>
+    </div>
+
+    {/* ── Doctor Feedback (post-report) ── */}
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 no-print anim-fade-up">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center"><Ic name="userCheck" size={20} className="text-violet-400"/></div>
+        <div><h3 className="text-base font-display font-bold text-white">Doctor Feedback</h3><p className="text-xs text-zinc-500">Your corrections trigger a full re-debate cycle</p></div>
+      </div>
+      <div className="flex gap-3 items-start">
+        <textarea value={fbText} onChange={e=>setFbText(e.target.value)} placeholder="Add clinical corrections, additional context, or disagree with findings…" rows={3}
+          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 resize-y transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10"/>
+        <div className="flex flex-col gap-2">
+          <MicBtn onTranscript={t=>setFbText(p=>p+(p?' ':'')+t)} className="shrink-0"/>
+          <button onClick={handleFeedback} disabled={fbBusy||!fbText.trim()} className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center gap-1.5">
+            {fbBusy?<span className="spinner spinner-sm"/>:<Ic name="refresh" size={14}/>}Re-analyze
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   SIDEBAR: Agent Log + Safety flags
+   ════════════════════════════════════════════════════════ */
+function Sidebar({logs,soap}){
+  const ref=useRef(null);
+  useEffect(()=>{ref.current&&(ref.current.scrollTop=ref.current.scrollHeight)},[logs]);
+  return <div className="space-y-4">
+    {/* Agent Log */}
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 anim-fade-up">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex gap-[5px]"><span className="w-[10px] h-[10px] rounded-full bg-rose-500/60"/><span className="w-[10px] h-[10px] rounded-full bg-amber-500/60"/><span className="w-[10px] h-[10px] rounded-full bg-emerald-500/60"/></div>
+        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Activity</span>
+      </div>
+      <div ref={ref} className="max-h-60 overflow-y-auto font-mono text-[11px] space-y-0.5">
+        {logs.length===0&&<p className="text-zinc-700 italic">$ awaiting input…</p>}
+        {logs.map((l,i)=><div key={i} className="flex gap-2 py-0.5 anim-slide-r">
+          <span className="text-zinc-700 shrink-0 tabular-nums">{l.time}</span>
+          <span className={`shrink-0 ${l.src==='error'?'text-rose-400':l.src==='pipeline'?'text-cyan-400':l.src==='human'?'text-violet-400':l.src==='upload'?'text-emerald-400':'text-brand-400'}`}>{l.src}</span>
+          <span className="text-zinc-500 break-words">{l.msg}</span>
+        </div>)}
+      </div>
+    </div>
+
+    {/* Safety flags */}
+    {soap?.safety_flags?.length>0&&<div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 anim-fade-up">
+      <div className="flex items-center gap-2 mb-3"><Ic name="alertTri" size={14} className="text-amber-400"/><span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Safety Flags</span></div>
+      {soap.safety_flags.map((f,i)=><p key={i} className="text-xs text-amber-300/80 pl-3 border-l-2 border-amber-500/20 py-1 mb-1">{typeof f==='string'?f:f.description||JSON.stringify(f)}</p>)}
+    </div>}
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: Analysis
+   ════════════════════════════════════════════════════════ */
+function AnalysisView(){
+  const t=useToast();
+  const[input,setInput]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[res,setRes]=useState(null);
+  const[steps,setSteps]=useState({});
+  const[agentMsgs,setAgentMsgs]=useState([]);
+  const[logs,setLogs]=useState([]);
+  const taRef=useRef(null);
+
+  const log=useCallback((src,msg)=>{const time=new Date().toLocaleTimeString('en-US',{hour12:false});setLogs(p=>[...p,{time,src,msg}])},[]);
+  const addMsg=useCallback((text,type='status')=>setAgentMsgs(p=>[...p,{text,type}]),[]);
+  const uStep=useCallback((k,v)=>setSteps(p=>({...p,[k]:v})),[]);
+  const allDone=useCallback(()=>PIPELINE_STEPS.forEach(s=>uStep(s.key,'done')),[uStep]);
+
+  const tryWS=useCallback(text=>new Promise(resolve=>{
+    const url=`${API.replace('http','ws')}/ws/analyze`;
+    let ws;try{ws=new WebSocket(url)}catch{resolve(false);return}
+    const to=setTimeout(()=>{ws.close();resolve(false)},4000);
+    ws.onopen=()=>{clearTimeout(to);ws.send(JSON.stringify({text}));log('system','WebSocket connected');addMsg('Stream opened')};
+    ws.onmessage=ev=>{try{
+      const m=JSON.parse(ev.data);
+      if(m.type==='status'){
+        const d=m.detail||m.stage||'';log('pipeline',d);addMsg(d);
+        const s=(m.stage||d).toLowerCase();
+        if(s.includes('pars')){uStep('parsing','done');uStep('agents','active')}
+        if(s.includes('agent')){uStep('parsing','done');uStep('agents','active')}
+        if(s.includes('literature')||s.includes('safety'))addMsg(d,'agent');
+        if(s.includes('debate')||s.includes('critic')){uStep('agents','done');uStep('debate','active')}
+        if(s.includes('synth')){uStep('debate','done');uStep('synthesis','active')}
+        if(s.includes('safety')&&s.includes('panel')){uStep('synthesis','done');uStep('safety_panel','active')}
+      }else if(m.type==='agent_result'){log('pipeline',`${m.agent} ✓`);addMsg(`${m.agent} completed`,'agent')}
+      else if(m.type==='complete'){allDone();setRes(m);setBusy(false);log('system','✓ Complete');t('Analysis complete','success');resolve(true)}
+      else if(m.type==='error'){log('error',m.message||'');t(m.message||'Error','error')}
+    }catch{}};
+    ws.onerror=()=>{clearTimeout(to);resolve(false)};
+    ws.onclose=()=>resolve(false);
+  }),[log,addMsg,uStep,allDone,t]);
+
+  const run=useCallback(async()=>{
+    if(!input.trim()){t('Enter clinical data','warning');return}
+    setBusy(true);setRes(null);setSteps({parsing:'active'});setLogs([]);setAgentMsgs([]);
+    log('system','Starting analysis…');addMsg('Initializing pipeline');
+    try{
+      if(await tryWS(input.trim()))return;
+      log('system','REST fallback');
+      const r=await fetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
+      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`)}
+      const data=await r.json();allDone();setRes(data);log('system','✓ Complete');t('Analysis complete','success');
+    }catch(e){log('error',e.message);t(e.message,'error');setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='error';return n})}
+    finally{setBusy(false)}
+  },[input,tryWS,log,addMsg,allDone,t]);
+
+  const uploadFile=useCallback(async(file,ep)=>{
+    try{
+      let r;
+      if(ep==='/api/upload/fhir')r=await fetch(`${API}${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},body:await file.text()});
+      else{const fd=new FormData();fd.append('file',file);r=await fetch(`${API}${ep}`,{method:'POST',body:fd})}
+      if(!r.ok)throw new Error('Upload failed');
+      const d=await r.json();
+      if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`;setInput(s.trim())}
+      if(d.summary)setInput(p=>p?p+'\n\n'+d.summary:d.summary);
+      t(`Parsed ${ep.includes('fhir')?'FHIR bundle':file.name}`,'success');log('upload','File ingested');
+    }catch(e){t(e.message,'error')}
+  },[t,log]);
+
+  const loadSampleFHIR=useCallback(async()=>{
+    try{
+      const r=await fetch(`${API}/api/upload/fhir`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SAMPLE_FHIR)});
+      if(!r.ok)throw new Error('FHIR parse failed');
+      const d=await r.json();
+      let s=d.summary||'';
+      if(d.patient_context){const c=d.patient_context;s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`}
+      setInput(s.trim()||'Sample FHIR patient loaded');t('FHIR bundle loaded','success');
+    }catch(e){t(e.message,'error')}
+  },[t]);
+
+  const feedback=useCallback(async fb=>{
+    const s=res?.soap;if(!s){t('Run analysis first','warning');return}
+    log('human',`Feedback: "${fb.slice(0,50)}…"`);
+    try{const r=await fetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_soap:s,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok)throw new Error('Failed');const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
+  },[res,log,t]);
+
+  const soap=res?.soap||(res?.subjective?res:null);
+  const debate=res?.debate||{};
+  const medPanel=res?.med_error_panel||{};
+  const showPipeline=Object.keys(steps).length>0;
+
+  return <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 relative z-10">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="lg:col-span-8 space-y-5">
+        {/* ── INPUT CARD ── */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 sm:p-6 anim-fade-up">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+              <Ic name="stethoscope" size={20} className="text-brand-400"/>
+            </div>
+            <div>
+              <h2 className="text-lg font-display font-bold text-white tracking-tight">Clinical Input</h2>
+              <p className="text-xs text-zinc-500">Free-text, voice dictation, or upload patient files</p>
+            </div>
+          </div>
+
+          {/* Textarea + Mic */}
+          <div className="flex gap-3">
+            <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} rows={6}
+              placeholder="Describe the clinical presentation…&#10;&#10;Include: demographics, chief complaint, PMH, medications, vitals, labs, physical exam, allergies"
+              className="flex-1 bg-zinc-800/50 border border-zinc-700 rounded-xl px-4 py-3.5 text-[15px] text-white placeholder:text-zinc-600 resize-y transition leading-relaxed font-body"
+              onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run()}}}/>
+            <div className="flex flex-col gap-2 shrink-0">
+              <MicBtn onTranscript={text=>setInput(p=>p+(p&&!p.endsWith(' ')?' ':'')+text)}/>
+              <span className="text-[9px] text-zinc-600 text-center leading-tight">Voice<br/>Input</span>
+            </div>
+          </div>
+
+          {/* Upload + sample actions */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <label className="cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
+              <Ic name="upload" size={13}/>PDF / CSV
+              <input type="file" accept=".pdf,.csv" className="hidden" onChange={e=>e.target.files[0]&&uploadFile(e.target.files[0],'/api/upload/ehr')}/>
+            </label>
+            <label className="cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
+              <Ic name="share" size={13}/>FHIR Bundle
+              <input type="file" accept=".json" className="hidden" onChange={e=>e.target.files[0]&&uploadFile(e.target.files[0],'/api/upload/fhir')}/>
+            </label>
+            <div className="h-6 w-px bg-zinc-800 mx-1 self-center"/>
+            <button onClick={()=>{setInput(SAMPLES[Math.floor(Math.random()*SAMPLES.length)]);t('Sample case loaded','info')}}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
+              <Ic name="fileText" size={13}/>Sample Case
+            </button>
+            <button onClick={loadSampleFHIR}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
+              <Ic name="globe" size={13}/>Sample FHIR
+            </button>
+          </div>
+
+          {/* Run */}
+          <div className="mt-5 flex items-center gap-3">
+            <button onClick={run} disabled={busy}
+              className="flex items-center gap-2.5 px-7 py-3 rounded-xl text-[15px] font-display font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{background:busy?'#27272a':'linear-gradient(135deg,#2563eb,#3b82f6)',boxShadow:busy?'none':'0 4px 24px rgba(37,99,235,.3)'}}>
+              {busy?<><span className="spinner"/>Analyzing…</>:<><Ic name="play" size={17}/>Run Analysis</>}
+            </button>
+            <button onClick={()=>{setInput('');setRes(null);setSteps({});setLogs([]);setAgentMsgs([])}}
+              className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm text-zinc-500 hover:text-zinc-300 bg-zinc-800/40 hover:bg-zinc-800 border border-zinc-800 transition">
+              <Ic name="trash" size={14}/>Clear
+            </button>
+            <span className="text-[10px] text-zinc-600 ml-auto hidden sm:flex items-center gap-1"><kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 font-mono text-[9px] border border-zinc-700">⌘ Enter</kbd></span>
+          </div>
+        </div>
+
+        {showPipeline&&!soap&&<PipelineViz steps={steps} msgs={agentMsgs}/>}
+
+        {soap&&<ClinicalReport soap={soap} debate={debate} medPanel={medPanel} onFeedback={feedback}/>}
+      </div>
+
+      {/* Sidebar */}
+      <div className="lg:col-span-4"><Sidebar logs={logs} soap={soap}/></div>
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: Emergency
+   ════════════════════════════════════════════════════════ */
+function EmergencyView(){
+  const t=useToast();
+  const[input,setInput]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[em,setEm]=useState(null);
+  const[lat,setLat]=useState(null);
+
+  const run=useCallback(async()=>{
+    if(!input.trim()){t('Describe the emergency','warning');return}
+    setBusy(true);setEm(null);const t0=performance.now();
+    try{
+      const r=await fetch(`${API}/api/emergency`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
+      if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||`HTTP ${r.status}`);
+      const d=await r.json();setLat(((performance.now()-t0)/1000).toFixed(1));setEm(d.emergency||d);t('Triage complete','success');
+    }catch(e){t(e.message,'error')}finally{setBusy(false)}
+  },[input,t]);
+
+  return <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 relative z-10">
+    <div className="rounded-2xl border border-rose-500/15 bg-zinc-900/50 p-6 sm:p-8 anim-fade-up">
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/15 mb-3"><Ic name="zap" size={32} className="text-rose-400"/></div>
+        <h2 className="text-3xl font-display font-bold text-white tracking-tight">Emergency Triage</h2>
+        <p className="text-sm text-zinc-500 mt-2">Fast-path — bypasses debate, targets &lt;15s</p>
+      </div>
+      <div className="flex gap-3">
+        <textarea value={input} onChange={e=>setInput(e.target.value)} rows={4}
+          placeholder="Describe the emergency…"
+          className="flex-1 bg-zinc-800/50 border-2 border-rose-500/15 rounded-xl px-4 py-3 text-[15px] text-white placeholder:text-zinc-600 resize-y transition"
+          onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run()}}}/>
+        <MicBtn onTranscript={text=>setInput(p=>p+(p?' ':'')+text)}/>
+      </div>
+      <button onClick={run} disabled={busy} className="mt-4 w-full py-4 rounded-xl text-white text-lg font-display font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+        style={{background:busy?'#3f3f46':'linear-gradient(135deg,#dc2626,#ea580c)',boxShadow:busy?'none':'0 4px 24px rgba(220,38,38,.25)'}}>
+        {busy?<><span className="spinner"/>TRIAGING…</>:<><Ic name="zap" size={22}/>TRIAGE NOW</>}
+      </button>
+
+      {em&&<div className="mt-8 space-y-5 anim-fade-up">
+        <div className="text-center">
+          <div className="inline-flex flex-col items-center">
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">ESI Level</span>
+            <div className={`w-24 h-24 rounded-2xl flex items-center justify-center text-5xl font-display font-black text-white esi-${em.esi_score||3}`}>{em.esi_score||'?'}</div>
+            <span className="text-xs text-zinc-500 mt-2 flex items-center gap-1"><Ic name="clock" size={12}/>{lat}s</span>
+          </div>
+        </div>
+
+        {em.top_differentials?.length>0&&<div>
+          <h3 className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-2">Top Differentials</h3>
+          <div className="space-y-1.5">{em.top_differentials.map((d,i)=>{const nm=typeof d==='string'?d:d.diagnosis||d.name;const cf=typeof d==='string'?'':d.likelihood||d.confidence||'';return<div key={i} className="flex items-center justify-between bg-zinc-800 rounded-xl px-4 py-3 border border-zinc-700"><span className="text-sm text-white font-medium">{nm}</span>{cf&&<span className="text-xs text-zinc-400">{String(cf)}</span>}</div>})}</div>
+        </div>}
+
+        {em.red_flags?.length>0&&<div className="p-4 rounded-xl bg-rose-500/[.06] border border-rose-500/15">
+          <h3 className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-2">🚩 Red Flags</h3>
+          <ul className="space-y-1.5">{em.red_flags.map((f,i)=><li key={i} className="text-sm text-rose-300 flex items-start gap-2"><span className="shrink-0 mt-0.5">⚠</span>{f}</li>)}</ul>
+        </div>}
+
+        <div className="p-4 rounded-xl bg-amber-500/[.06] border border-amber-500/15">
+          <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">Immediate Action</h3>
+          <p className="text-white text-sm font-semibold">{em.call_to_action||'Immediate medical evaluation required'}</p>
+        </div>
+
+        {em.safety_flags?.length>0&&<div className="p-4 rounded-xl bg-orange-500/[.06] border border-orange-500/15">
+          <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">Safety</h3>
+          <ul className="space-y-1">{em.safety_flags.map((f,i)=><li key={i} className="text-sm text-orange-300">{typeof f==='string'?f:f.description}</li>)}</ul>
+        </div>}
+      </div>}
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: Tools
+   ════════════════════════════════════════════════════════ */
+function ToolsView(){
+  const t=useToast();
+  const[drugs,setDrugs]=useState('');const[drugRes,setDrugRes]=useState(null);const[drugBusy,setDrugBusy]=useState(false);
+  const[calcTab,setCalcTab]=useState('bmi');const[cv,setCv]=useState({w:'',h:'',s:'',d:''});
+  const cs=(k,v)=>setCv(p=>({...p,[k]:v}));
+  const bmi=useMemo(()=>{const w=+cv.w,h=+cv.h/100;return w&&h?(w/(h*h)).toFixed(1):null},[cv.w,cv.h]);
+  const map=useMemo(()=>{const s=+cv.s,d=+cv.d;return s&&d?((s+2*d)/3).toFixed(0):null},[cv.s,cv.d]);
+
+  return <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 relative z-10 space-y-5">
+    <div className="anim-fade-up">
+      <h2 className="text-2xl font-display font-bold text-white tracking-tight">Clinical Tools</h2>
+      <p className="text-sm text-zinc-500 mt-1">Drug interactions, calculators & quick reference</p>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* Drug checker */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center"><Ic name="pill" size={20} className="text-rose-400"/></div>
+          <div><h3 className="text-base font-display font-bold text-white">Drug Interaction Checker</h3><p className="text-[11px] text-zinc-500">RxNorm + DrugBank</p></div>
+        </div>
+        <div className="flex gap-2">
+          <input value={drugs} onChange={e=>setDrugs(e.target.value)} placeholder="metformin, lisinopril, aspirin…"
+            className="flex-1 bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 transition"
+            onKeyDown={e=>{if(e.key==='Enter'){setDrugBusy(true);setDrugRes(null);fetch(`${API}/api/safety-check?drugs=${encodeURIComponent(drugs)}`).then(r=>r.json()).then(d=>{setDrugRes(d);t('Check complete','success')}).catch(e=>t(e.message,'error')).finally(()=>setDrugBusy(false))}}}/>
+          <MicBtn onTranscript={text=>setDrugs(p=>p+(p?', ':'')+text)}/>
+        </div>
+        <button onClick={()=>{if(!drugs.trim()){t('Enter drugs','warning');return}setDrugBusy(true);setDrugRes(null);fetch(`${API}/api/safety-check?drugs=${encodeURIComponent(drugs)}`).then(r=>r.json()).then(d=>{setDrugRes(d);t('Check complete','success')}).catch(e=>t(e.message,'error')).finally(()=>setDrugBusy(false))}}
+          disabled={drugBusy} className="mt-3 w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2">
+          {drugBusy?<><span className="spinner spinner-sm"/>Checking…</>:<><Ic name="search" size={15}/>Check Interactions</>}
+        </button>
+        {drugRes&&<div className="mt-3 space-y-2 anim-fade-up">
+          {Array.isArray(drugRes.rxnorm_interactions)&&drugRes.rxnorm_interactions.length>0?drugRes.rxnorm_interactions.map((r,i)=><div key={i} className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/10 text-xs text-rose-300">{r.description||JSON.stringify(r)}</div>):
+          <p className="text-xs text-emerald-400">✓ No RxNorm interactions found</p>}
+        </div>}
+      </div>
+
+      {/* Calculator */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up anim-d1">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center"><Ic name="calculator" size={20} className="text-brand-400"/></div>
+          <h3 className="text-base font-display font-bold text-white">Medical Calculators</h3>
+        </div>
+        <div className="flex gap-1 mb-4">{[{id:'bmi',l:'BMI'},{id:'map',l:'MAP'}].map(c=><button key={c.id} onClick={()=>setCalcTab(c.id)} className="tab-pill px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent" data-active={calcTab===c.id?'true':'false'}>{c.l}</button>)}</div>
+        {calcTab==='bmi'?<div className="space-y-3">
+          <div><label className="text-[10px] text-zinc-500 font-medium">Weight (kg)</label><input value={cv.w} onChange={e=>cs('w',e.target.value)} placeholder="70" type="number" className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white mt-1 transition"/></div>
+          <div><label className="text-[10px] text-zinc-500 font-medium">Height (cm)</label><input value={cv.h} onChange={e=>cs('h',e.target.value)} placeholder="175" type="number" className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white mt-1 transition"/></div>
+          {bmi&&<div className="p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 anim-scale-in"><p className="text-sm text-brand-300 font-bold">BMI: {bmi} — {bmi<18.5?'Underweight':bmi<25?'Normal':bmi<30?'Overweight':'Obese'}</p></div>}
+        </div>:
+        <div className="space-y-3">
+          <div><label className="text-[10px] text-zinc-500 font-medium">Systolic BP</label><input value={cv.s} onChange={e=>cs('s',e.target.value)} placeholder="120" type="number" className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white mt-1 transition"/></div>
+          <div><label className="text-[10px] text-zinc-500 font-medium">Diastolic BP</label><input value={cv.d} onChange={e=>cs('d',e.target.value)} placeholder="80" type="number" className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white mt-1 transition"/></div>
+          {map&&<div className="p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 anim-scale-in"><p className="text-sm text-brand-300 font-bold">MAP: {map} mmHg — {map<65?'⚠ Hypotension':map>100?'⚠ Hypertension':'Normal'}</p></div>}
+        </div>}
+      </div>
+    </div>
+    {/* Reference */}
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up anim-d2">
+      <h3 className="text-base font-display font-bold text-white mb-4">Quick Reference</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[{title:'Normal Vitals',items:['HR: 60–100 bpm','BP: 90/60 – 120/80','RR: 12–20/min','Temp: 97.8–99.1°F','SpO2: >95%']},{title:'Critical Labs',items:['Troponin: <0.04 ng/mL','INR: 2.0–3.0 (warfarin)','D-dimer: <0.5 μg/mL','Creatinine: 0.7–1.3 mg/dL','WBC: 4.5–11.0 K/μL']},{title:'ESI Levels',items:['1 — Resuscitation','2 — Emergent','3 — Urgent','4 — Less Urgent','5 — Non-urgent']}].map((s,i)=>
+          <div key={i} className="bg-zinc-800/40 border border-zinc-800 rounded-xl p-4">
+            <h4 className="text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wide">{s.title}</h4>
+            <ul className="space-y-1">{s.items.map((it,j)=><li key={j} className="text-[12px] text-zinc-500 font-mono">{it}</li>)}</ul>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: Classifiers
+   ════════════════════════════════════════════════════════ */
+function ClassifiersView(){
+  const[sel,setSel]=useState(null);const c=CLASSIFIERS.find(x=>x.id===sel);
+  return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 relative z-10">
+    <div className="mb-6 anim-fade-up"><h2 className="text-2xl font-display font-bold text-white tracking-tight">Medical Imaging AI</h2><p className="text-sm text-zinc-500 mt-1">Diagnostic classification tools</p></div>
+    {!sel?<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{CLASSIFIERS.map((cl,i)=><button key={cl.id} onClick={()=>setSel(cl.id)} className="text-left rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 card-hover group anim-fade-up" style={{animationDelay:`${i*.06}s`}}>
+      <div className="flex items-center gap-4 mb-4"><span className="text-4xl">{cl.icon}</span><div><h3 className="text-lg font-display font-bold text-white group-hover:text-brand-400 transition">{cl.name}</h3><p className="text-xs text-zinc-500">{cl.desc}</p></div></div>
+      <div className="flex gap-2"><span className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700">Embed</span>
+        <a href={cl.url} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} className="text-[10px] px-2.5 py-1 rounded-lg bg-zinc-800 text-brand-400 border border-zinc-700 flex items-center gap-1"><Ic name="extLink" size={9}/>Open</a>
+      </div>
+    </button>)}</div>:
+    <div className="anim-fade-up"><div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2.5"><span className="text-2xl">{c.icon}</span><h3 className="text-lg font-display font-bold text-white">{c.name}</h3></div>
+      <div className="flex gap-2"><a href={c.url} target="_blank" className="px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 hover:text-white flex items-center gap-1"><Ic name="extLink" size={11}/>Open</a><button onClick={()=>setSel(null)} className="px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 hover:text-white flex items-center gap-1"><Ic name="x" size={11}/>Close</button></div>
+    </div><iframe src={c.url} className="w-full rounded-2xl border border-zinc-800" style={{height:'78vh'}} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" loading="lazy"/></div>}
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: Architecture
+   ════════════════════════════════════════════════════════ */
+function ArchView(){
+  const archRef=useRef(null);const flowRef=useRef(null);
+  const[tab,setTab]=useState('system');
+  useEffect(()=>{mermaid.initialize({startOnLoad:false,theme:'dark',themeVariables:{primaryColor:'#18181b',primaryTextColor:'#fafafa',primaryBorderColor:'#3b82f6',lineColor:'#3f3f46',secondaryColor:'#27272a',tertiaryColor:'#18181b',background:'transparent',mainBkg:'#18181b',nodeBorder:'#3b82f6',clusterBkg:'rgba(24,24,27,.5)',clusterBorder:'rgba(59,130,246,.3)',fontSize:'12px',fontFamily:'DM Sans,sans-serif'}})},[]);
+  useEffect(()=>{const el=tab==='system'?archRef.current:flowRef.current;const d=tab==='system'?ARCH_DIAGRAM:FLOW_DIAGRAM;if(el){el.innerHTML='';mermaid.render(`mm-${tab}-${Date.now()}`,d).then(({svg})=>el.innerHTML=svg).catch(()=>el.innerHTML='<p style="color:#71717a">Diagram render failed</p>')}},[tab]);
+
+  return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 relative z-10">
+    <div className="mb-6 anim-fade-up"><h2 className="text-2xl font-display font-bold text-white tracking-tight">System Architecture</h2><p className="text-sm text-zinc-500 mt-1">Multi-agent pipeline with debate-driven reasoning</p></div>
+    <div className="flex gap-1 mb-5 anim-fade-up">{[{id:'system',l:'System Overview'},{id:'flow',l:'Data Flow'}].map(t=><button key={t.id} onClick={()=>setTab(t.id)} className="tab-pill px-4 py-2 rounded-xl text-sm font-medium border border-transparent" data-active={tab===t.id?'true':'false'}>{t.l}</button>)}</div>
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 sm:p-6 anim-fade-up overflow-x-auto">
+      <div ref={archRef} className={`mermaid min-h-[280px] ${tab!=='system'?'hidden':''}`}/>
+      <div ref={flowRef} className={`mermaid min-h-[280px] ${tab!=='flow'?'hidden':''}`}/>
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+      {[{t:'AI & Reasoning',c:'text-violet-400',items:['GPT-4o + GPT-4o-mini','Multi-agent debate (3 rounds)','Critic consensus engine','Human-in-the-loop feedback']},{t:'Safety & Data',c:'text-rose-400',items:['Presidio PHI anonymizer','PubMed / Entrez','RxNorm interactions','FDA + DrugBank']},{t:'Infrastructure',c:'text-brand-400',items:['FastAPI + WebSocket','React 18 (CDN)','LanceDB vectors','Pydantic v2 validation']}].map((s,i)=>
+        <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up" style={{animationDelay:`${i*.08}s`}}>
+          <h3 className={`text-sm font-display font-bold ${s.c} mb-3`}>{s.t}</h3>
+          <ul className="space-y-1.5">{s.items.map((it,j)=><li key={j} className="text-xs text-zinc-500 flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0"/>{it}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEW: AI Chat Assistant
+   ════════════════════════════════════════════════════════ */
+function ChatView(){
+  const t=useToast();
+  const[msgs,setMsgs]=useState([{role:'assistant',content:'Hello! I\'m ClinicalPilot AI. I can help with clinical questions, drug interactions, differential diagnoses, and guideline lookups. How can I help you today?'}]);
+  const[input,setInput]=useState('');
+  const[busy,setBusy]=useState(false);
+  const endRef=useRef(null);
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[msgs]);
+
+  const send=useCallback(async()=>{
+    if(!input.trim()||busy)return;
+    const userMsg=input.trim();setInput('');setMsgs(p=>[...p,{role:'user',content:userMsg}]);setBusy(true);
+    try{
+      // Use analyze endpoint as a clinical Q&A proxy
+      const r=await fetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:`Clinical question from doctor: ${userMsg}\n\nProvide a concise, evidence-based answer.`})});
+      if(!r.ok)throw new Error('Failed');
+      const d=await r.json();const soap=d.soap||{};
+      const reply=[soap.assessment,soap.plan,soap.objective].filter(Boolean).join('\n\n')||'I processed your query but couldn\'t generate a specific response. Please try rephrasing.';
+      setMsgs(p=>[...p,{role:'assistant',content:reply}]);
+    }catch(e){setMsgs(p=>[...p,{role:'assistant',content:`Sorry, I encountered an error: ${e.message}. Please try again.`}]);t(e.message,'error')}
+    finally{setBusy(false)}
+  },[input,busy,t]);
+
+  return <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 relative z-10 flex flex-col" style={{height:'calc(100vh - 80px)'}}>
+    <div className="mb-4 anim-fade-up">
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
+          <Ic name="sparkles" size={24} className="text-white"/>
+        </div>
+        <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Ask clinical questions — powered by the full ClinicalPilot pipeline</p></div>
+      </div>
+    </div>
+
+    {/* Messages */}
+    <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+      {msgs.map((m,i)=><div key={i} className={`flex ${m.role==='user'?'justify-end':'justify-start'} anim-fade-up`}>
+        <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${m.role==='user'?'bg-brand-600 text-white rounded-br-md':'bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-bl-md'}`}>{m.content}</div>
+      </div>)}
+      {busy&&<div className="flex justify-start anim-fade-up"><div className="bg-zinc-800 border border-zinc-700 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2"><span className="spinner spinner-sm"/><span className="text-sm text-zinc-400">Thinking…</span></div></div>}
+      <div ref={endRef}/>
+    </div>
+
+    {/* Input */}
+    <div className="pt-4 border-t border-zinc-800">
+      <div className="flex gap-2">
+        <MicBtn onTranscript={text=>setInput(p=>p+(p?' ':'')+text)}/>
+        <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask a clinical question…"
+          className="flex-1 bg-zinc-800/50 border border-zinc-700 rounded-xl px-4 py-3 text-[15px] text-white placeholder:text-zinc-600 transition"
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/>
+        <button onClick={send} disabled={busy||!input.trim()} className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white transition disabled:opacity-40"><Ic name="send" size={18}/></button>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   APP ROOT
+   ════════════════════════════════════════════════════════ */
+function App(){
+  const[view,setView]=useState('analysis');
+  const[online,setOnline]=useState(false);
+  const[splashDone,setSplashDone]=useState(false);
+
+  useEffect(()=>{
+    const check=()=>fetch(`${API}/api/health`).then(r=>r.json()).then(d=>setOnline(d.status==='ok')).catch(()=>setOnline(false));
+    check();const iv=setInterval(check,30000);return()=>clearInterval(iv);
+  },[]);
+
+  useEffect(()=>{const t=setTimeout(()=>{document.getElementById('splash')?.classList.add('hide');setSplashDone(true)},2200);return()=>clearTimeout(t)},[]);
+
+  return <ToastProvider>
+    <div className="min-h-screen flex flex-col relative">
+      <Navbar view={view} setView={setView} online={online}/>
+      <main className="flex-1 relative z-10">
+        {view==='analysis'&&<AnalysisView/>}
+        {view==='emergency'&&<EmergencyView/>}
+        {view==='tools'&&<ToolsView/>}
+        {view==='classifiers'&&<ClassifiersView/>}
+        {view==='architecture'&&<ArchView/>}
+        {view==='chat'&&<ChatView/>}
+      </main>
+      <footer className="relative z-10 text-center py-4 text-[11px] text-zinc-700 border-t border-zinc-800/60 safe-b">
+        ClinicalPilot v2 · Multi-Agent Clinical Decision Support · For research & educational use only
+      </footer>
+    </div>
+  </ToastProvider>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

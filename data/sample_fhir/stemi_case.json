@@ -1,0 +1,195 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "sample-patient-1",
+        "name": [{ "given": ["John"], "family": "Doe" }],
+        "gender": "male",
+        "birthDate": "1979-03-15"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-1",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "38341003", "display": "Hypertension" }],
+          "text": "Hypertension"
+        },
+        "clinicalStatus": {
+          "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active" }]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-2",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "44054006", "display": "Type 2 Diabetes Mellitus" }],
+          "text": "Type 2 Diabetes Mellitus"
+        },
+        "clinicalStatus": {
+          "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active" }]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-3",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "55822004", "display": "Hyperlipidemia" }],
+          "text": "Hyperlipidemia"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-1",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "medicationCodeableConcept": {
+          "coding": [{ "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "860975", "display": "Metformin 1000 MG" }],
+          "text": "Metformin 1000mg"
+        },
+        "dosageInstruction": [{ "text": "1000mg BID" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-2",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "medicationCodeableConcept": {
+          "coding": [{ "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "314076", "display": "Lisinopril 20 MG" }],
+          "text": "Lisinopril 20mg"
+        },
+        "dosageInstruction": [{ "text": "20mg daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-3",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "medicationCodeableConcept": {
+          "text": "Atorvastatin 40mg"
+        },
+        "dosageInstruction": [{ "text": "40mg daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "med-4",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "medicationCodeableConcept": {
+          "text": "Aspirin 81mg"
+        },
+        "dosageInstruction": [{ "text": "81mg daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-bp",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood Pressure" }]
+        },
+        "component": [
+          {
+            "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6", "display": "Systolic BP" }] },
+            "valueQuantity": { "value": 160, "unit": "mmHg" }
+          },
+          {
+            "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4", "display": "Diastolic BP" }] },
+            "valueQuantity": { "value": 95, "unit": "mmHg" }
+          }
+        ],
+        "effectiveDateTime": "2024-01-15T14:30:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-hr",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "8867-4", "display": "Heart Rate" }]
+        },
+        "valueQuantity": { "value": 110, "unit": "bpm" },
+        "effectiveDateTime": "2024-01-15T14:30:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-troponin",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "10839-9", "display": "Troponin I" }]
+        },
+        "valueQuantity": { "value": 0.82, "unit": "ng/mL" },
+        "referenceRange": [{ "high": { "value": 0.04, "unit": "ng/mL" } }],
+        "effectiveDateTime": "2024-01-15T14:45:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-glucose",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "2345-7", "display": "Glucose" }]
+        },
+        "valueQuantity": { "value": 245, "unit": "mg/dL" },
+        "effectiveDateTime": "2024-01-15T14:45:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-creatinine",
+        "subject": { "reference": "Patient/sample-patient-1" },
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "2160-0", "display": "Creatinine" }]
+        },
+        "valueQuantity": { "value": 1.1, "unit": "mg/dL" },
+        "effectiveDateTime": "2024-01-15T14:45:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "id": "allergy-1",
+        "patient": { "reference": "Patient/sample-patient-1" },
+        "code": { "text": "Sulfa drugs" },
+        "reaction": [{ "severity": "severe" }],
+        "clinicalStatus": {
+          "coding": [{ "code": "active" }]
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "id": "allergy-2",
+        "patient": { "reference": "Patient/sample-patient-1" },
+        "code": { "text": "Shellfish" },
+        "reaction": [{ "severity": "moderate" }]
+      }
+    }
+  ]
+}
