@@ -52,7 +52,7 @@ cp .env.example .env
 # Edit .env with your actual keys
 ```
 
-**Minimum required**: Set `OPENAI_API_KEY` in `.env`
+**Minimum required**: Set `OPENAI_API_KEY` in `.env` (for analysis pipeline) and `GROQ_API_KEY` (for AI chat)
 
 ### 5. Run the Application
 
@@ -179,6 +179,18 @@ Without an API key, PubMed limits you to 3 requests/second (vs 10 with key).
 
 Works without a key but has lower rate limits.
 
+### Groq (Required for AI Chat)
+
+1. Go to https://console.groq.com/keys
+2. Create a free API key
+3. Add to `.env`:
+   ```
+   GROQ_API_KEY=gsk_...your-key-here...
+   GROQ_MODEL=llama-3.3-70b-versatile
+   ```
+
+The AI Chat view uses Groq's Llama 3.3 70B for fast conversational clinical Q&A. Without this key, the chat endpoint returns 503 — the rest of the app works fine.
+
 ---
 
 ## Data Downloads (Manual Steps)
@@ -298,17 +310,22 @@ After setup, verify everything works:
 # 1. Health check
 curl http://localhost:8000/api/health
 
-# 2. Test with sample case (should return SOAP note)
+# 2. Test AI Chat (Groq)
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "What are the red flags for chest pain?"}]}'
+
+# 3. Test with sample case (should return SOAP note — takes ~100s)
 curl -X POST http://localhost:8000/api/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "45-year-old male presenting with acute chest pain radiating to left arm, diaphoresis, and shortness of breath. History of hypertension and type 2 diabetes. Current medications: metformin 1000mg BID, lisinopril 20mg daily."}'
 
-# 3. Test emergency mode
+# 4. Test emergency mode
 curl -X POST http://localhost:8000/api/emergency \
   -H "Content-Type: application/json" \
   -d '{"text": "Unconscious patient, no pulse, bystander CPR in progress"}'
 
-# 4. Check API docs
+# 5. Check API docs
 open http://localhost:8000/docs
 ```
 

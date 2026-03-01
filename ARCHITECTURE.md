@@ -21,8 +21,8 @@ clinicalpilot/
 ├── Flowcharts/              ← Visual architecture diagrams (HTML)
 │
 ├── backend/                 ← FastAPI Python backend
-│   ├── main.py              ← FastAPI app entrypoint
-│   ├── config.py            ← Settings / env loading
+│   ├── main.py              ← FastAPI app + all endpoints + Groq chat
+│   ├── config.py            ← Settings / env loading (incl. Groq config)
 │   │
 │   ├── models/              ← Pydantic data models
 │   │   ├── __init__.py
@@ -92,7 +92,7 @@ clinicalpilot/
 │
 ├── frontend/                ← React 18 CDN frontend (zero build step)
 │   ├── index.html           ← Complete SPA (~1100 lines: React 18 + Babel CDN + Tailwind)
-│   ├── app.js               ← Backward-compat stub (logic is in index.html)
+│   ├── app.js               ← Backward-compat stub
 │   └── styles.css           ← Backward-compat stub
 │
 └── data/                    ← Local data files
@@ -123,6 +123,14 @@ clinicalpilot/
 | Clinical | GPT-4o / MedGemma-2-9b | PatientContext + few-shot CoT | Differential dx, risk scores, SOAP draft |
 | Literature | GPT-4o-mini | PubMed (BioPython Entrez — **parallel queries**), Europe PMC, RAG (LanceDB) | Evidence snippets, confidence, contradictions |
 | Safety | GPT-4o / rule-based | DrugBank CSV, RxNorm (**parallel lookups**), FDA API (**parallel lookups**) | Structured warnings with severity |
+
+### Groq AI Chat (Standalone)
+- Endpoint: `POST /api/chat`
+- Model: Llama 3.3 70B Versatile via Groq SDK
+- Purpose: Fast conversational clinical Q&A — sub-second responses, no agent/debate overhead
+- Maintains full conversation history (multi-turn)
+- Uses a dedicated clinical system prompt (evidence-based, structured formatting, safety-first)
+- Future: Will connect to LanceDB RAG for grounded answers
 
 ### Layer 4: Debate Layer
 - **Per Round**: Clinical agent → (Literature + Safety in **parallel**) → Critic
@@ -194,6 +202,9 @@ clinicalpilot/
 - [x] requirements.txt
 - [x] .gitignore
 - [x] Sample data files
+- [x] Groq-powered AI Chat (direct LLM, no agents — Llama 3.3 70B via Groq SDK)
+- [x] `/api/chat` endpoint with conversation history support
+- [x] Frontend ChatView rewired to Groq (sub-second responses)
 
 ### ✅ Bug Fixes & Optimizations (Post-Build)
 
@@ -261,14 +272,19 @@ clinicalpilot/
    python -m backend.rag.lancedb_store --init
    ```
 
+#### Groq API Key (Required for AI Chat)
+8. **Groq API Key** — Get from https://console.groq.com/keys
+   - Set `GROQ_API_KEY` in `.env`
+   - Set `GROQ_MODEL` (optional, defaults to `llama-3.3-70b-versatile`)
+
 #### Frontend Serving
-8. The frontend is a static SPA — serve via FastAPI (auto-configured) or any static server
+9. The frontend is a static SPA — serve via FastAPI (auto-configured) or any static server
    - No build step required (vanilla JS)
 
 #### Production Deployment (Future)
-9. **Docker** — `docker-compose up` (compose file provided)
-10. **HTTPS** — Required for production (use nginx reverse proxy)
-11. **HIPAA Compliance** — Audit logging, encryption at rest, BAA with cloud provider
+10. **Docker** — `docker-compose up` (compose file provided)
+11. **HTTPS** — Required for production (use nginx reverse proxy)
+12. **HIPAA Compliance** — Audit logging, encryption at rest, BAA with cloud provider
 
 ---
 
@@ -290,6 +306,8 @@ clinicalpilot/
 | `LANCEDB_PATH` | No | Default: `data/lancedb` |
 | `FDA_API_KEY` | No | openFDA API key (optional, works without) |
 | `LOG_LEVEL` | No | Default: `INFO` |
+| `GROQ_API_KEY` | No* | Groq API key for AI Chat (required for `/api/chat`) |
+| `GROQ_MODEL` | No | Default: `llama-3.3-70b-versatile` |
 | `CORS_ORIGINS` | No | Default: `["*"]` |
 | `EMERGENCY_TIMEOUT_SEC` | No | Default: `5` |
 | `MAX_DEBATE_ROUNDS` | No | Default: `3` |
@@ -314,6 +332,7 @@ clinicalpilot/
 |--------|------|-------------|
 | POST | `/api/analyze` | Full analysis pipeline (input → debate → SOAP) |
 | POST | `/api/emergency` | Emergency mode (fast path, <5s) |
+| POST | `/api/chat` | AI chat via Groq / Llama 3.3 70B (sub-second) |
 | POST | `/api/upload/fhir` | Upload FHIR bundle JSON |
 | POST | `/api/upload/ehr` | Upload PDF/CSV EHR document |
 | POST | `/api/human-feedback` | Doctor edits → re-debate |
