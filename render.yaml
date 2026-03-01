@@ -10,20 +10,37 @@ services:
       python -m spacy download en_core_web_lg
     startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # ── Secrets (Render prompts you to enter these) ──
       - key: OPENAI_API_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: NCBI_EMAIL
         sync: false
+      - key: NCBI_API_KEY
+        sync: false
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: FDA_API_KEY
+        sync: false
+      # ── Runtime ──
       - key: PYTHON_VERSION
         value: "3.11.9"
+      # ── LLM Config ──
       - key: OPENAI_MODEL
         value: "gpt-4o"
       - key: OPENAI_FAST_MODEL
         value: "gpt-4o-mini"
       - key: GROQ_MODEL
         value: "llama-3.3-70b-versatile"
+      - key: USE_LOCAL_LLM
+        value: "false"
+      # ── Observability ──
+      - key: LANGCHAIN_TRACING_V2
+        value: "false"
+      - key: LANGCHAIN_PROJECT
+        value: "clinicalpilot"
+      # ── App Settings ──
       - key: LOG_LEVEL
         value: "INFO"
       - key: CORS_ORIGINS
@@ -32,7 +49,10 @@ services:
         value: "5"
       - key: MAX_DEBATE_ROUNDS
         value: "3"
+      # ── Data Paths ──
       - key: LANCEDB_PATH
         value: "data/lancedb"
+      - key: DRUGBANK_CSV_PATH
+        value: "data/drugbank/drugbank_vocabulary.csv"
       - key: SPACY_MODEL
         value: "en_core_web_lg"
