@@ -236,7 +236,7 @@ function MicBtn({onTranscript,className=''}){
 /* ════════════════════════════════════════════════════════
    SAMPLE FHIR BUNDLE
    ════════════════════════════════════════════════════════ */
-const SAMPLE_FHIR={"resourceType":"Bundle","type":"collection","entry":[{"resource":{"resourceType":"Patient","name":[{"given":["John"],"family":"Doe"}],"gender":"male","birthDate":"1978-06-15"}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"38341003","display":"Hypertension"}]},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"44054006","display":"Type 2 Diabetes Mellitus"}]},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Metformin 1000mg BID"}]},"status":"active"}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Lisinopril 20mg daily"}]},"status":"active"}},{"resource":{"resourceType":"MedicationStatement","medicationCodeableConcept":{"coding":[{"display":"Atorvastatin 40mg daily"}]},"status":"active"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Blood Pressure"}]},"valueString":"145/92 mmHg"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Heart Rate"}]},"valueString":"78 bpm"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"HbA1c"}]},"valueString":"8.2%"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"display":"Creatinine"}]},"valueString":"1.4 mg/dL"}},{"resource":{"resourceType":"AllergyIntolerance","code":{"coding":[{"display":"Penicillin"}]}}}]};
+const SAMPLE_FHIR={"resourceType":"Bundle","type":"collection","entry":[{"resource":{"resourceType":"Patient","name":[{"given":["John"],"family":"Doe"}],"gender":"male","birthDate":"1978-06-15"}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"38341003","display":"Hypertension"}],"text":"Hypertension"},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"44054006","display":"Type 2 Diabetes Mellitus"}],"text":"Type 2 Diabetes Mellitus"},"clinicalStatus":{"coding":[{"code":"active"}]}}},{"resource":{"resourceType":"Condition","code":{"coding":[{"system":"http://snomed.info/sct","code":"55822004","display":"Hyperlipidemia"}],"text":"Hyperlipidemia"}}},{"resource":{"resourceType":"MedicationRequest","medicationCodeableConcept":{"text":"Metformin 1000mg"},"dosageInstruction":[{"text":"1000mg BID"}],"status":"active"}},{"resource":{"resourceType":"MedicationRequest","medicationCodeableConcept":{"text":"Lisinopril 20mg"},"dosageInstruction":[{"text":"20mg daily"}],"status":"active"}},{"resource":{"resourceType":"MedicationRequest","medicationCodeableConcept":{"text":"Atorvastatin 40mg"},"dosageInstruction":[{"text":"40mg daily"}],"status":"active"}},{"resource":{"resourceType":"MedicationRequest","medicationCodeableConcept":{"text":"Aspirin 81mg"},"dosageInstruction":[{"text":"81mg daily"}],"status":"active"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"85354-9","display":"Blood Pressure"}]},"valueString":"160/95 mmHg"}},{"resource":{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"8867-4","display":"Heart Rate"}]},"valueQuantity":{"value":110,"unit":"bpm"}}},{"resource":{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"10839-9","display":"Troponin I"}]},"valueQuantity":{"value":0.82,"unit":"ng/mL"},"referenceRange":[{"high":{"value":0.04,"unit":"ng/mL"}}]}},{"resource":{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"2345-7","display":"Glucose"}]},"valueQuantity":{"value":245,"unit":"mg/dL"}}},{"resource":{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"2160-0","display":"Creatinine"}]},"valueQuantity":{"value":1.1,"unit":"mg/dL"}}},{"resource":{"resourceType":"AllergyIntolerance","code":{"text":"Sulfa drugs"},"reaction":[{"severity":"severe"}]}},{"resource":{"resourceType":"AllergyIntolerance","code":{"text":"Shellfish"},"reaction":[{"severity":"moderate"}]}}]};
 
 /* ════════════════════════════════════════════════════════
    CONSTANTS
@@ -695,11 +695,31 @@ function AnalysisView(){
       else{const fd=new FormData();fd.append('file',file);r=await fetch(`${API}${ep}`,{method:'POST',body:fd})}
       if(!r.ok)throw new Error('Upload failed');
       const d=await r.json();
-      if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`;setInput(s.trim())}
+      if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`;setInput(s.trim())}
       if(d.summary)setInput(p=>p?p+'\n\n'+d.summary:d.summary);
       t(`Parsed ${ep.includes('fhir')?'FHIR bundle':file.name}`,'success');log('upload','File ingested');
     }catch(e){t(e.message,'error')}
   },[t,log]);
+
+  const loadSampleCSV=useCallback(async()=>{
+    try{
+      const csv=`patient_id,age,gender,condition,medication,dosage,lab_name,lab_value,lab_unit,allergy,vital_name,vital_value
+P003,45,male,Hypertension,Metformin,1000mg BID,Troponin I,0.82,ng/mL,,BP,160/95
+P003,45,male,Type 2 Diabetes,Lisinopril,20mg daily,WBC,11.2,K/uL,Sulfa drugs,HR,110
+P003,45,male,Hyperlipidemia,Atorvastatin,40mg daily,Glucose,245,mg/dL,Shellfish,RR,22
+P003,45,male,,Aspirin,81mg daily,Creatinine,1.1,mg/dL,,SpO2,94%
+P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
+      const blob=new Blob([csv],{type:'text/csv'});
+      const file=new File([blob],'sample_stemi.csv',{type:'text/csv'});
+      const fd=new FormData();fd.append('file',file);
+      const r=await fetch(`${API}/api/upload/ehr`,{method:'POST',body:fd});
+      if(!r.ok)throw new Error('CSV parse failed');
+      const d=await r.json();
+      if(d.summary)setInput(d.summary);
+      else if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;setInput(s.trim())}
+      t('Sample CSV loaded','success');
+    }catch(e){t(e.message,'error')}
+  },[t]);
 
   const loadSampleFHIR=useCallback(async()=>{
     try{
@@ -707,7 +727,7 @@ function AnalysisView(){
       if(!r.ok)throw new Error('FHIR parse failed');
       const d=await r.json();
       let s=d.summary||'';
-      if(d.patient_context){const c=d.patient_context;s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`}
+      if(d.patient_context){const c=d.patient_context;s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.labs?.length)s+=`Labs: ${c.labs.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.vitals?.length)s+=`Vitals: ${c.vitals.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`}
       setInput(s.trim()||'Sample FHIR patient loaded');t('FHIR bundle loaded','success');
     }catch(e){t(e.message,'error')}
   },[t]);
@@ -715,7 +735,7 @@ function AnalysisView(){
   const feedback=useCallback(async fb=>{
     const s=res?.soap;if(!s){t('Run analysis first','warning');return}
     log('human',`Feedback: "${fb.slice(0,50)}…"`);
-    try{const r=await fetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_soap:s,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok)throw new Error('Failed');const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
+    try{const r=await fetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_text:input,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Feedback failed')}const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
   },[res,log,t]);
 
   const soap=res?.soap||(res?.subjective?res:null);
@@ -768,6 +788,10 @@ function AnalysisView(){
             <button onClick={loadSampleFHIR}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
               <Ic name="globe" size={13}/>Sample FHIR
+            </button>
+            <button onClick={loadSampleCSV}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs text-zinc-400 hover:text-white hover:border-zinc-600 transition">
+              <Ic name="barChart" size={13}/>Sample CSV
             </button>
           </div>
 
@@ -994,25 +1018,29 @@ function ArchView(){
    ════════════════════════════════════════════════════════ */
 function ChatView(){
   const t=useToast();
-  const[msgs,setMsgs]=useState([{role:'assistant',content:'Hello! I\'m ClinicalPilot AI. I can help with clinical questions, drug interactions, differential diagnoses, and guideline lookups. How can I help you today?'}]);
+  const[msgs,setMsgs]=useState([{role:'assistant',content:'Hello! I\'m ClinicalPilot AI — powered by Llama 3.3 70B via Groq. I can help with clinical questions, drug interactions, differential diagnoses, lab interpretation, and guideline lookups. How can I help you today?'}]);
   const[input,setInput]=useState('');
   const[busy,setBusy]=useState(false);
+  const[meta,setMeta]=useState(null);
   const endRef=useRef(null);
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[msgs]);
 
   const send=useCallback(async()=>{
     if(!input.trim()||busy)return;
-    const userMsg=input.trim();setInput('');setMsgs(p=>[...p,{role:'user',content:userMsg}]);setBusy(true);
+    const userMsg=input.trim();setInput('');
+    const newMsgs=[...msgs,{role:'user',content:userMsg}];
+    setMsgs(newMsgs);setBusy(true);
     try{
-      // Use analyze endpoint as a clinical Q&A proxy
-      const r=await fetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:`Clinical question from doctor: ${userMsg}\n\nProvide a concise, evidence-based answer.`})});
-      if(!r.ok)throw new Error('Failed');
-      const d=await r.json();const soap=d.soap||{};
-      const reply=[soap.assessment,soap.plan,soap.objective].filter(Boolean).join('\n\n')||'I processed your query but couldn\'t generate a specific response. Please try rephrasing.';
-      setMsgs(p=>[...p,{role:'assistant',content:reply}]);
+      // Send conversation history to Groq-powered /api/chat
+      const history=newMsgs.filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
+      const r=await fetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
+      if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||`HTTP ${r.status}`)}
+      const d=await r.json();
+      setMsgs(p=>[...p,{role:'assistant',content:d.reply}]);
+      setMeta({model:d.model,latency:d.latency_ms,tokens:d.tokens});
     }catch(e){setMsgs(p=>[...p,{role:'assistant',content:`Sorry, I encountered an error: ${e.message}. Please try again.`}]);t(e.message,'error')}
     finally{setBusy(false)}
-  },[input,busy,t]);
+  },[input,busy,msgs,t]);
 
   return <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 relative z-10 flex flex-col" style={{height:'calc(100vh - 80px)'}}>
     <div className="mb-4 anim-fade-up">
@@ -1020,7 +1048,7 @@ function ChatView(){
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
           <Ic name="sparkles" size={24} className="text-white"/>
         </div>
-        <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Ask clinical questions — powered by the full ClinicalPilot pipeline</p></div>
+        <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Powered by Groq (Llama 3.3 70B) — fast, conversational clinical Q&A{meta?<span className="ml-2 text-zinc-600">· {meta.model} · {meta.latency}ms · {meta.tokens} tokens</span>:null}</p></div>
       </div>
     </div>
 
@@ -1035,12 +1063,15 @@ function ChatView(){
 
     {/* Input */}
     <div className="pt-4 border-t border-zinc-800">
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-2">
         <MicBtn onTranscript={text=>setInput(p=>p+(p?' ':'')+text)}/>
         <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask a clinical question…"
           className="flex-1 bg-zinc-800/50 border border-zinc-700 rounded-xl px-4 py-3 text-[15px] text-white placeholder:text-zinc-600 transition"
           onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/>
         <button onClick={send} disabled={busy||!input.trim()} className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white transition disabled:opacity-40"><Ic name="send" size={18}/></button>
+      </div>
+      <div className="flex justify-end mt-1">
+        <button onClick={()=>{setMsgs([{role:'assistant',content:'Chat cleared. How can I help?'}]);setMeta(null)}} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition">Clear chat</button>
       </div>
     </div>
   </div>;

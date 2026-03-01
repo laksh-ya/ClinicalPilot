@@ -79,14 +79,14 @@ clinicalpilot/
 │   ├── observability/        # LangSmith tracing
 │   └── guardrails/           # Hallucination + completeness checks
 ├── frontend/
-│   ├── index.html            # SPA entry point
-│   ├── styles.css            # Custom styles (+ Tailwind CDN)
-│   └── app.js                # Full frontend logic
+│   └── index.html            # Complete SPA (React 18 + Babel CDN, ~1100 lines)
 ├── data/
-│   ├── sample_fhir/          # Test FHIR R4 bundles
-│   └── sample_ehr/           # Test CSV data
+│   ├── sample_fhir/          # Test FHIR R4 bundles (STEMI, Stroke, PE)
+│   └── sample_ehr/           # Test CSV patient data
+├── Flowcharts/               # Interactive architecture diagrams (HTML)
 ├── ARCHITECTURE.md            # System design reference
 ├── INSTALL.md                 # Installation guide
+├── _smoke_test.sh             # Automated end-to-end test suite
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
@@ -116,7 +116,7 @@ clinicalpilot/
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
 | PHI Safety | Microsoft Presidio + spaCy |
 | External Data | PubMed, DrugBank, RxNorm, openFDA |
-| Frontend | Vanilla JS + Tailwind CSS (no build step) |
+| Frontend | React 18 (CDN) + Tailwind CSS (no build step) |
 | Observability | LangSmith |
 
 ## License
@@ -124,6 +124,19 @@ clinicalpilot/
 MIT
 
 ---
+
+## Frontend Features
+
+The frontend is a **zero-build React 18 SPA** served directly by FastAPI — no Node.js, no Webpack, no npm.
+
+| View | Features |
+|------|----------|
+| **Analysis** | Free-text / voice dictation input, FHIR & CSV upload, real-time WebSocket pipeline visualization, SOAP report with PDF export, doctor feedback loop |
+| **Emergency** | Fast-path triage (<15s), ESI scoring, red flags, immediate action cards |
+| **Tools** | Drug interaction checker (RxNorm/DrugBank), BMI & MAP calculators, clinical reference tables |
+| **Imaging AI** | Embedded Streamlit classifiers — lung, chest, retina, skin cancer |
+| **Architecture** | Live Mermaid.js system & data flow diagrams |
+| **AI Chat** | Conversational clinical Q&A powered by the full analysis pipeline |
 
 ## Smoke Test
 

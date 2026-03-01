@@ -1,0 +1,11 @@
+patient_id,age,gender,condition,medication,dosage,lab_name,lab_value,lab_unit,allergy,vital_name,vital_value
+P003,45,male,Hypertension,Metformin,1000mg BID,Troponin I,0.82,ng/mL,,BP,160/95
+P003,45,male,Type 2 Diabetes,Lisinopril,20mg daily,WBC,11.2,K/uL,Sulfa drugs,HR,110
+P003,45,male,Hyperlipidemia,Atorvastatin,40mg daily,Glucose,245,mg/dL,Shellfish,RR,22
+P003,45,male,,Aspirin,81mg daily,Creatinine,1.1,mg/dL,,SpO2,94%
+P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6°F
+P004,32,female,Asthma,Albuterol,2 puffs PRN,WBC,14.5,K/uL,Aspirin,RR,28
+P004,32,female,,Fluticasone,250mcg BID,CRP,8.2,mg/L,,SpO2,93
+P004,32,female,,Montelukast,10mg daily,pH,7.35,,,,
+P004,32,female,,,,pCO2,48,mmHg,,BP,110/70
+P004,32,female,,,,Lactate,2.8,mmol/L,,HR,105

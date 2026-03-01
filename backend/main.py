@@ -309,6 +309,69 @@ async def get_classifiers():
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  AI CHAT (Groq — lightweight, no agents)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CHAT_SYSTEM_PROMPT = """You are ClinicalPilot AI, a clinical decision-support assistant for healthcare professionals.
+
+Your role:
+- Answer clinical questions with evidence-based, concise responses.
+- Help with differential diagnoses, drug interactions, guideline lookups, lab interpretation, and clinical reasoning.
+- Always cite relevant guidelines (e.g., ACC/AHA, WHO, UpToDate) when applicable.
+- If a question involves patient safety, flag it clearly.
+- Use structured formatting (bullet points, numbered lists) for clarity.
+- If you are unsure, say so — never fabricate clinical information.
+
+You are NOT a replacement for clinical judgment. Always remind users that your answers are for educational/decision-support purposes only.
+
+IMPORTANT: In future you will have access to a LanceDB vector store with indexed medical literature for RAG-enhanced answers. For now, rely on your training knowledge."""
+
+
+@app.post("/api/chat")
+async def chat(payload: dict):
+    """
+    Lightweight AI chat using Groq (Llama 3.3 70B).
+    Accepts {messages: [{role, content}, ...]} with conversation history.
+    """
+    messages = payload.get("messages", [])
+    if not messages:
+        raise HTTPException(400, "No messages provided")
+
+    if not settings.groq_api_key:
+        raise HTTPException(503, "Groq API key not configured. Add GROQ_API_KEY to .env")
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=settings.groq_api_key)
+
+        # Prepend system prompt
+        full_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + [
+            {"role": m["role"], "content": m["content"]} for m in messages
+        ]
+
+        t0 = time.time()
+        completion = client.chat.completions.create(
+            model=settings.groq_model,
+            messages=full_messages,
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        latency_ms = int((time.time() - t0) * 1000)
+
+        reply = completion.choices[0].message.content
+        return {
+            "reply": reply,
+            "model": settings.groq_model,
+            "latency_ms": latency_ms,
+            "tokens": getattr(completion.usage, "total_tokens", None),
+        }
+    except Exception as e:
+        logger.exception("Chat failed")
+        raise HTTPException(500, f"Chat failed: {str(e)}")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  WEBSOCKET (Streaming Analysis)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

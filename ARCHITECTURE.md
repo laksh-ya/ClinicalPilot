@@ -17,7 +17,6 @@ clinicalpilot/
 ├── .gitignore
 ├── requirements.txt         ← Python dependencies
 ├── pyproject.toml           ← Project metadata
-├── docker-compose.yml       ← Optional: full-stack docker setup
 │
 ├── Flowcharts/              ← Visual architecture diagrams (HTML)
 │
@@ -91,19 +90,10 @@ clinicalpilot/
 │       ├── __init__.py
 │       └── rules.py         ← Pydantic validators, hallucination checks
 │
-├── frontend/                ← Vanilla JS + Tailwind CSS frontend (SPA)
-│   ├── index.html           ← Main SPA entry
-│   ├── styles.css           ← Global styles
-│   ├── app.js               ← Main application logic
-│   ├── components/          ← UI components
-│   │   ├── InputPanel.js
-│   │   ├── SOAPDisplay.js
-│   │   ├── DebateViewer.js
-│   │   ├── EmergencyMode.js
-│   │   ├── SafetyPanel.js
-│   │   ├── ClassifierKit.js
-│   │   └── HumanLoop.js
-│   └── assets/
+├── frontend/                ← React 18 CDN frontend (zero build step)
+│   ├── index.html           ← Complete SPA (~1100 lines: React 18 + Babel CDN + Tailwind)
+│   ├── app.js               ← Backward-compat stub (logic is in index.html)
+│   └── styles.css           ← Backward-compat stub
 │
 └── data/                    ← Local data files
     ├── drugbank/            ← DrugBank open CSV data
@@ -311,7 +301,7 @@ clinicalpilot/
 1. **LanceDB over ChromaDB/Pinecone**: Serverless, embedded, no infra cost. Perfect for hackathon.
 2. **Async Python (asyncio)**: All agent calls are async for parallel execution.
 3. **Pydantic everywhere**: Type safety, auto-validation, JSON schema generation.
-4. **Static frontend**: No React build step. Vanilla JS + Tailwind CDN. Fastest to iterate.
+4. **Static frontend**: React 18 + Babel CDN. No React build step, no npm. Fastest to iterate.
 5. **FastAPI**: Auto-generates OpenAPI docs, async-native, WebSocket support.
 6. **Debate fixed rounds (2-3)**: Deterministic, no infinite loops.
 7. **Emergency mode bypass**: Separate fast path, no debate overhead.
@@ -349,14 +339,14 @@ clinicalpilot/
 
 ```
 TEST 1: Health Check ................ PASS
-TEST 2: Full Analysis Pipeline ...... PASS (104s)
+TEST 2: Full Analysis Pipeline ...... PASS (102s)
   - SOAP: All 4 sections populated
-  - Differentials: 4 (Hyperkalemia, CKD, Orthostatic hypotension, Anemia)
-  - Citations: 5 PubMed references
+  - Differentials: 4 (Anemia, Orthostatic Hypotension, CKD Progression, Medication Side Effects)
+  - Citations: 4 PubMed references
   - Safety flags: 2 (Lisinopril+K hyperkalemia, Metformin renal dosing)
   - Drug interactions: 1 major (Lisinopril × Potassium)
   - Dosing alerts: 1, Population flags: 1
-TEST 3: Emergency Mode .............. PASS (15s)
+TEST 3: Emergency Mode .............. PASS (3s)
   - ESI Score: 1 (highest severity)
   - Differentials: 3 (AMI, Cardiogenic Shock, Aortic Dissection)
   - Red flags: 4

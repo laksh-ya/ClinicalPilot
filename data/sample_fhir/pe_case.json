@@ -1,0 +1,115 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "sample-patient-3",
+        "name": [{ "given": ["Emily"], "family": "Chen" }],
+        "gender": "female",
+        "birthDate": "1997-11-03"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "266257000", "display": "Obesity" }],
+          "text": "Obesity (BMI 32)"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "medicationCodeableConcept": { "text": "Combined oral contraceptive pill" },
+        "dosageInstruction": [{ "text": "1 tablet daily" }],
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood Pressure" }]
+        },
+        "valueString": "118/76 mmHg",
+        "effectiveDateTime": "2026-02-28T09:00:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "8867-4", "display": "Heart Rate" }]
+        },
+        "valueQuantity": { "value": 112, "unit": "bpm" },
+        "effectiveDateTime": "2026-02-28T09:00:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "9279-1", "display": "Respiratory Rate" }]
+        },
+        "valueQuantity": { "value": 24, "unit": "/min" },
+        "effectiveDateTime": "2026-02-28T09:00:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "2708-6", "display": "SpO2" }]
+        },
+        "valueQuantity": { "value": 91, "unit": "%" },
+        "effectiveDateTime": "2026-02-28T09:00:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "8310-5", "display": "Body Temperature" }]
+        },
+        "valueQuantity": { "value": 100.4, "unit": "°F" },
+        "effectiveDateTime": "2026-02-28T09:00:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "48065-7", "display": "D-dimer" }]
+        },
+        "valueQuantity": { "value": 2.4, "unit": "μg/mL" },
+        "referenceRange": [{ "high": { "value": 0.5, "unit": "μg/mL" } }],
+        "interpretation": [{ "coding": [{ "code": "H", "display": "High" }] }],
+        "effectiveDateTime": "2026-02-28T09:15:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "6690-2", "display": "WBC" }]
+        },
+        "valueQuantity": { "value": 11.8, "unit": "K/μL" },
+        "effectiveDateTime": "2026-02-28T09:15:00Z"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "10839-9", "display": "Troponin I" }]
+        },
+        "valueQuantity": { "value": 0.06, "unit": "ng/mL" },
+        "referenceRange": [{ "high": { "value": 0.04, "unit": "ng/mL" } }],
+        "effectiveDateTime": "2026-02-28T09:15:00Z"
+      }
+    }
+  ]
+}

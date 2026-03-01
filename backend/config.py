@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     langchain_tracing_v2: bool = False
     langchain_project: str = "clinicalpilot"
 
+    # ── Groq (AI Chat) ────────────────────────────────────
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
     # ── FDA ──────────────────────────────────────────────
     fda_api_key: str = ""
 

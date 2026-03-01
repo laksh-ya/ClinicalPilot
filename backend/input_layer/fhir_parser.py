@@ -50,7 +50,7 @@ def parse_fhir_bundle(bundle: dict) -> PatientContext:
                 _parse_patient(resource, ctx)
             elif rtype == "Condition":
                 _parse_condition(resource, ctx)
-            elif rtype == "MedicationRequest":
+            elif rtype in ("MedicationRequest", "MedicationStatement"):
                 _parse_medication(resource, ctx)
             elif rtype == "Observation":
                 _parse_observation(resource, ctx)
@@ -115,7 +115,7 @@ def _parse_condition(resource: dict, ctx: PatientContext) -> None:
 
 
 def _parse_medication(resource: dict, ctx: PatientContext) -> None:
-    """Extract medications from FHIR MedicationRequest."""
+    """Extract medications from FHIR MedicationRequest or MedicationStatement."""
     med_code = resource.get("medicationCodeableConcept", {})
     codings = med_code.get("coding", [])
     name = med_code.get("text", "")
