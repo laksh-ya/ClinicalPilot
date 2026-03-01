@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: clinicalpilot
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      python -m spacy download en_core_web_lg
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: NCBI_EMAIL
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: OPENAI_MODEL
+        value: "gpt-4o"
+      - key: OPENAI_FAST_MODEL
+        value: "gpt-4o-mini"
+      - key: GROQ_MODEL
+        value: "llama-3.3-70b-versatile"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: CORS_ORIGINS
+        value: '["*"]'
+      - key: EMERGENCY_TIMEOUT_SEC
+        value: "5"
+      - key: MAX_DEBATE_ROUNDS
+        value: "3"
+      - key: LANCEDB_PATH
+        value: "data/lancedb"
+      - key: SPACY_MODEL
+        value: "en_core_web_lg"
