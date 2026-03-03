@@ -8,12 +8,16 @@ import json
 import os
 from pathlib import Path
 from functools import lru_cache
+from typing import Any
 
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
 # Project root = parent of /backend
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# ── Runtime overrides (in-memory, not persisted) ────────
+_runtime_overrides: dict[str, Any] = {}
 
 
 class Settings(BaseSettings):
@@ -75,3 +79,15 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+
+def set_runtime_override(key: str, value: Any) -> None:
+    """Set a runtime override for a setting (not persisted)."""
+    _runtime_overrides[key] = value
+
+
+def get_effective(key: str) -> Any:
+    """Get a setting value, preferring runtime overrides."""
+    if key in _runtime_overrides and _runtime_overrides[key]:
+        return _runtime_overrides[key]
+    return getattr(get_settings(), key)

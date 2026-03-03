@@ -1,7 +1,7 @@
 """
 Debate Engine — orchestrates multi-round agent debate.
 
-Round 1: All agents generate independently (parallel)
+Round 1: All agents generate independently (parallel or sequential)
 Round 2: Critic reviews → agents revise
 Round 3: Final revision (if no consensus after round 2)
 
@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from backend.config import get_effective
 from backend.models.patient import PatientContext
 from backend.models.agents import (
     ClinicalAgentOutput,
@@ -83,10 +84,19 @@ async def run_debate(
     return state
 
 
+def _using_groq() -> bool:
+    """Return True when the active LLM provider is Groq (no OpenAI key)."""
+    return not get_effective("openai_api_key")
+
+
+# Small delay between sequential Groq calls to respect free-tier TPM limits
+_GROQ_INTER_CALL_DELAY = 2.0
+
+
 async def _round_1(
     patient: PatientContext,
 ) -> tuple[ClinicalAgentOutput, LiteratureAgentOutput, SafetyAgentOutput]:
-    """Round 1: All agents generate in parallel."""
+    """Round 1: All agents generate (parallel when possible, sequential for Groq)."""
     from backend.agents.clinical import run_clinical_agent
     from backend.agents.literature import run_literature_agent
     from backend.agents.safety import run_safety_agent
@@ -94,11 +104,18 @@ async def _round_1(
     # Clinical runs first (literature needs its output)
     clinical = await run_clinical_agent(patient)
 
-    # Literature and Safety run in parallel
-    literature, safety = await asyncio.gather(
-        run_literature_agent(patient, clinical_output=clinical),
-        run_safety_agent(patient, proposed_plan=clinical.soap_draft),
-    )
+    if _using_groq():
+        # Sequential execution to stay within Groq free-tier rate limits
+        await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
+        literature = await run_literature_agent(patient, clinical_output=clinical)
+        await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
+        safety = await run_safety_agent(patient, proposed_plan=clinical.soap_draft)
+    else:
+        # Parallel execution for OpenAI / Ollama
+        literature, safety = await asyncio.gather(
+            run_literature_agent(patient, clinical_output=clinical),
+            run_safety_agent(patient, proposed_plan=clinical.soap_draft),
+        )
 
     return clinical, literature, safety
 
@@ -116,15 +133,26 @@ async def _revision_round(
     # Clinical revises first
     clinical = await run_clinical_agent(patient, critique=critique_text)
 
-    # Literature and Safety revise in parallel
-    literature, safety = await asyncio.gather(
-        run_literature_agent(
+    if _using_groq():
+        # Sequential execution to stay within Groq free-tier rate limits
+        await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
+        literature = await run_literature_agent(
             patient, clinical_output=clinical, critique=critique_text
-        ),
-        run_safety_agent(
+        )
+        await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
+        safety = await run_safety_agent(
             patient, proposed_plan=clinical.soap_draft, critique=critique_text
-        ),
-    )
+        )
+    else:
+        # Parallel execution for OpenAI / Ollama
+        literature, safety = await asyncio.gather(
+            run_literature_agent(
+                patient, clinical_output=clinical, critique=critique_text
+            ),
+            run_safety_agent(
+                patient, proposed_plan=clinical.soap_draft, critique=critique_text
+            ),
+        )
 
     return clinical, literature, safety
 

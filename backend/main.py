@@ -40,7 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import get_settings, PROJECT_ROOT
+from backend.config import get_settings, PROJECT_ROOT, set_runtime_override, get_effective
 from backend.models.patient import AnalysisRequest, PatientContext
 from backend.models.soap import SOAPNote, EmergencyOutput
 from backend.models.safety import MedErrorPanel
@@ -102,6 +102,59 @@ async def health_check():
         "model": settings.openai_model,
         "local_llm": settings.use_local_llm,
     }
+
+
+@app.get("/api/config-status")
+async def config_status():
+    """Return which LLM providers are configured and active."""
+    openai_key = get_effective("openai_api_key")
+    groq_key = get_effective("groq_api_key")
+    has_openai = bool(openai_key)
+    has_groq = bool(groq_key)
+
+    if has_openai:
+        active_provider = "openai"
+    elif has_groq:
+        active_provider = "groq"
+    elif settings.use_local_llm:
+        active_provider = "ollama"
+    else:
+        active_provider = "none"
+
+    return {
+        "has_openai_key": has_openai,
+        "has_groq_key": has_groq,
+        "use_local_llm": settings.use_local_llm,
+        "active_provider": active_provider,
+        "openai_model": settings.openai_model,
+        "groq_model": settings.groq_model,
+    }
+
+
+@app.post("/api/set-api-key")
+async def set_api_key(payload: dict):
+    """
+    Set OpenAI API key at runtime (stored in memory only, not persisted).
+    Accepts {openai_api_key: "sk-..."} and/or {groq_api_key: "gsk_..."}.
+    """
+    updated = []
+
+    openai_key = payload.get("openai_api_key", "").strip()
+    if openai_key:
+        set_runtime_override("openai_api_key", openai_key)
+        updated.append("openai_api_key")
+        logger.info("OpenAI API key set via runtime override")
+
+    groq_key = payload.get("groq_api_key", "").strip()
+    if groq_key:
+        set_runtime_override("groq_api_key", groq_key)
+        updated.append("groq_api_key")
+        logger.info("Groq API key set via runtime override")
+
+    if not updated:
+        raise HTTPException(400, "No valid API key provided")
+
+    return {"status": "ok", "updated": updated}
 
 
 @app.post("/api/analyze", response_model=dict)
@@ -330,25 +383,60 @@ IMPORTANT: In future you will have access to a LanceDB vector store with indexed
 @app.post("/api/chat")
 async def chat(payload: dict):
     """
-    Lightweight AI chat using Groq (Llama 3.3 70B).
+    AI chat — tries OpenAI first, falls back to Groq.
     Accepts {messages: [{role, content}, ...]} with conversation history.
     """
     messages = payload.get("messages", [])
     if not messages:
         raise HTTPException(400, "No messages provided")
 
-    if not settings.groq_api_key:
-        raise HTTPException(503, "Groq API key not configured. Add GROQ_API_KEY to .env")
+    openai_key = get_effective("openai_api_key")
+    groq_key = get_effective("groq_api_key")
 
+    if not openai_key and not groq_key:
+        raise HTTPException(
+            503,
+            "No LLM API key configured. Please set your OpenAI API key in Settings, or add GROQ_API_KEY to .env"
+        )
+
+    full_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + [
+        {"role": m["role"], "content": m["content"]} for m in messages
+    ]
+
+    # Try OpenAI first
+    if openai_key:
+        try:
+            from openai import OpenAI as SyncOpenAI
+
+            client = SyncOpenAI(api_key=openai_key)
+
+            t0 = time.time()
+            completion = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=full_messages,
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            latency_ms = int((time.time() - t0) * 1000)
+
+            reply = completion.choices[0].message.content
+            return {
+                "reply": reply,
+                "model": settings.openai_model,
+                "provider": "openai",
+                "latency_ms": latency_ms,
+                "tokens": getattr(completion.usage, "total_tokens", None),
+            }
+        except Exception as e:
+            logger.warning(f"OpenAI chat failed ({e}), falling back to Groq")
+            if not groq_key:
+                raise HTTPException(500, f"OpenAI chat failed and no Groq fallback: {str(e)}")
+
+    # Fallback to Groq
     try:
         from groq import Groq
 
-        client = Groq(api_key=settings.groq_api_key)
-
-        # Prepend system prompt
-        full_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + [
-            {"role": m["role"], "content": m["content"]} for m in messages
-        ]
+        client = Groq(api_key=groq_key)
 
         t0 = time.time()
         completion = client.chat.completions.create(
@@ -363,11 +451,12 @@ async def chat(payload: dict):
         return {
             "reply": reply,
             "model": settings.groq_model,
+            "provider": "groq",
             "latency_ms": latency_ms,
             "tokens": getattr(completion.usage, "total_tokens", None),
         }
     except Exception as e:
-        logger.exception("Chat failed")
+        logger.exception("Chat failed on all providers")
         raise HTTPException(500, f"Chat failed: {str(e)}")
 
 

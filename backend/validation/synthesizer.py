@@ -95,6 +95,26 @@ Flagged for human review: {debate.flagged_for_human}
     return soap
 
 
+def _to_str(val: Any) -> str:
+    """Coerce a value to string — joins lists with newlines."""
+    if val is None:
+        return ""
+    if isinstance(val, list):
+        return "\n".join(str(item) for item in val)
+    return str(val)
+
+
+def _to_str_list(val: Any) -> list[str]:
+    """Coerce a value to a list of strings."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(item) for item in val]
+    if isinstance(val, str):
+        return [val] if val else []
+    return [str(val)]
+
+
 def _parse_soap(data: Any) -> SOAPNote:
     """Parse synthesizer output into SOAPNote."""
     if isinstance(data, str):
@@ -108,23 +128,23 @@ def _parse_soap(data: Any) -> SOAPNote:
                 likelihood=d.get("likelihood", ""),
                 reasoning=d.get("reasoning", ""),
                 confidence=_conf(d.get("confidence", "medium")),
-                supporting_evidence=d.get("supporting_evidence", []),
+                supporting_evidence=_to_str_list(d.get("supporting_evidence", [])),
             )
         )
 
     return SOAPNote(
-        subjective=data.get("subjective", ""),
-        objective=data.get("objective", ""),
-        assessment=data.get("assessment", ""),
-        plan=data.get("plan", ""),
+        subjective=_to_str(data.get("subjective", "")),
+        objective=_to_str(data.get("objective", "")),
+        assessment=_to_str(data.get("assessment", "")),
+        plan=_to_str(data.get("plan", "")),
         differentials=differentials,
         risk_scores=data.get("risk_scores", {}),
         uncertainty=_conf(data.get("uncertainty", "medium")),
-        uncertainty_reasoning=data.get("uncertainty_reasoning", ""),
-        citations=data.get("citations", []),
-        safety_flags=data.get("safety_flags", []),
-        debate_summary=data.get("debate_summary", ""),
-        dissent_log=data.get("dissent_log", []),
+        uncertainty_reasoning=_to_str(data.get("uncertainty_reasoning", "")),
+        citations=_to_str_list(data.get("citations", [])),
+        safety_flags=_to_str_list(data.get("safety_flags", [])),
+        debate_summary=_to_str(data.get("debate_summary", "")),
+        dissent_log=_to_str_list(data.get("dissent_log", [])),
     )
 
 
