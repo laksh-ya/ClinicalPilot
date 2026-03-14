@@ -22,13 +22,14 @@ The result: fewer hallucinations, more differential diagnoses, actual PubMed cit
 
 - **Multi-agent debate** — 3 specialist agents + Critic, 2-3 adversarial rounds, consensus-or-flag-for-human-review
 - **Emergency triage** — Bypasses the debate entirely, ESI scoring in <5 seconds, immediate action cards
-- **Medical error prevention** — Drug-drug interactions, drug-disease contraindications, renal/hepatic dosing alerts, pregnancy/pediatric/elderly flags (DrugBank + RxNorm + openFDA, all parallel)
+- **Medical error prevention** — Drug-drug interactions, drug-disease contraindications, renal/hepatic dosing alerts, pregnancy/pediatric/elderly flags (RxNorm + DrugBank with optional openFDA lookups)
 - **FHIR R4 + EHR upload** — Drop in FHIR bundles, PDFs, CSVs, or just type free-text clinical notes
 - **PHI anonymization** — Microsoft Presidio scrubs protected health information before anything hits an LLM
-- **RAG pipeline** — LanceDB vector store for medical literature, PubMed E-utilities for live citations, DrugBank + RxNorm + openFDA for drug data
-- **AI Chat** — Groq-powered conversational assistant (Llama 3.3 70B) for quick clinical Q&A — sub-second responses, no agent overhead
+- **RAG pipeline** — LanceDB vector store for medical literature retrieval and PubMed E-utilities for live citations
+- **AI Chat** — Conversational assistant with OpenAI-first and Groq fallback for quick clinical Q&A
+- **Runtime provider settings** — Enter OpenAI/Groq API keys from the UI (in-memory, no file edits required)
 - **Human-in-the-loop** — Doctor edits feed back into the debate engine for re-analysis
-- **Medical image classifiers** — Embedded Streamlit apps for lung disease, chest X-ray, retinopathy, and skin cancer analysis
+- **Medical image classifiers** — External Streamlit apps (launched in in-app iframes) for lung disease, chest X-ray, retinopathy, and skin cancer analysis
 - **Observability** — LangSmith tracing on every agent call, token tracking, latency breakdown
 - **Guardrails** — Pydantic schema validation, hallucinated medication cross-checks, differential completeness rules
 
@@ -42,13 +43,16 @@ python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Add your OPENAI_API_KEY (required) and GROQ_API_KEY (for AI Chat)
+# Add at least one key: OPENAI_API_KEY and/or GROQ_API_KEY
+# You can also set keys at runtime from the frontend Settings modal
 
 python -m uvicorn backend.main:app --reload --port 8000
 # Open http://localhost:8000
 ```
 
 That's it. No npm, no webpack, no Docker required. The frontend is a single HTML file served by FastAPI.
+
+Note: analysis outputs are returned in API responses and are not persisted to a database by default.
 
 Full setup guide with platform-specific notes, optional local LLM (MedGemma via Ollama), and data downloads → [INSTALL.md](INSTALL.md)
 
@@ -76,7 +80,7 @@ Synthesizer → Validator   Med Error Panel
 SOAP Note + Safety Alerts + Citations
 ```
 
-Full system design, layer-by-layer breakdown, and progress tracker → [ARCHITECTURE.md](ARCHITECTURE.md)
+Full system design and layer-by-layer architecture reference → [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 
@@ -85,7 +89,7 @@ Full system design, layer-by-layer breakdown, and progress tracker → [ARCHITEC
 ```
 clinicalpilot/
 ├── backend/
-│   ├── main.py                 # FastAPI app — all endpoints + Groq chat
+│   ├── main.py                 # FastAPI app — all endpoints + provider-aware chat
 │   ├── config.py               # pydantic-settings config
 │   ├── models/                 # Pydantic schemas (patient, SOAP, agents, safety)
 │   ├── input_layer/            # Anonymizer, FHIR/EHR/text parsers
@@ -123,14 +127,26 @@ clinicalpilot/
 |--------|------|--------------|
 | `POST` | `/api/analyze` | Full multi-agent debate pipeline → SOAP note |
 | `POST` | `/api/emergency` | Emergency triage, ESI scoring (<5s) |
-| `POST` | `/api/chat` | AI chat via Groq / Llama 3.3 70B (sub-second) |
+| `GET` | `/api/config-status` | Returns configured providers and active provider |
+| `POST` | `/api/set-api-key` | Set OpenAI/Groq API key at runtime (memory only) |
+| `POST` | `/api/chat` | AI chat via OpenAI-first with Groq fallback |
 | `POST` | `/api/upload/fhir` | Upload FHIR R4 bundle JSON |
 | `POST` | `/api/upload/ehr` | Upload PDF/CSV EHR documents |
 | `POST` | `/api/human-feedback` | Doctor edits → triggers re-analysis |
-| `GET` | `/api/safety-check` | Drug interaction lookup (RxNorm + DrugBank + FDA) |
+| `GET` | `/api/safety-check` | Drug interaction lookup (RxNorm + DrugBank) |
 | `GET` | `/api/classifiers` | List available imaging classifier apps |
 | `GET` | `/api/health` | Health check |
 | `WS` | `/ws/analyze` | WebSocket streaming — real-time pipeline visualization |
+
+---
+
+## Operational snapshot
+
+1. Configure at least one provider key (`OPENAI_API_KEY` and/or `GROQ_API_KEY`) or enable local Ollama.
+2. Run `python -m uvicorn backend.main:app --reload --port 8000`.
+3. Use Analysis for full multi-agent SOAP generation and Emergency for fast triage.
+4. Set or switch keys at runtime from Settings (`/api/config-status`, `/api/set-api-key`).
+5. Use `_smoke_test.sh` for quick end-to-end verification.
 
 ---
 
@@ -143,9 +159,9 @@ Zero-build React 18 SPA — no Node.js, no bundler. Served straight from FastAPI
 | **Analysis** | Free-text or voice input, FHIR/CSV upload with sample data buttons, real-time WebSocket pipeline stages, full SOAP report with PDF export, doctor feedback loop |
 | **Emergency** | Fast-path triage, ESI scoring, red flag identification, immediate action cards |
 | **Tools** | Drug interaction checker (multi-drug, RxNorm-backed), BMI calculator, MAP calculator, clinical reference tables |
-| **Imaging AI** | Embedded Streamlit classifiers — lung disease, chest X-ray, diabetic retinopathy, skin cancer |
+| **Imaging AI** | External Streamlit classifier apps rendered in iframes — lung disease, chest X-ray, diabetic retinopathy, skin cancer |
 | **Architecture** | Live Mermaid.js diagrams — system flow and data pipeline |
-| **AI Chat** | Conversational clinical Q&A powered by Groq (Llama 3.3 70B) — fast, multi-turn, with conversation history |
+| **AI Chat** | Conversational clinical Q&A with OpenAI-first and Groq fallback, multi-turn conversation history, provider metadata |
 
 ---
 
@@ -154,12 +170,12 @@ Zero-build React 18 SPA — no Node.js, no bundler. Served straight from FastAPI
 | Layer | Tech |
 |-------|------|
 | Backend | Python 3.10+, FastAPI, uvicorn, async everywhere |
-| Agents | GPT-4o / GPT-4o-mini via OpenAI SDK (+ MedGemma via Ollama fallback) |
-| AI Chat | Groq SDK — Llama 3.3 70B Versatile |
+| Agents | Local Ollama (optional) → OpenAI → Groq fallback |
+| AI Chat | OpenAI-first chat with Groq fallback |
 | Vector DB | LanceDB (embedded, serverless) |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
 | PHI Safety | Microsoft Presidio + spaCy (en_core_web_lg) |
-| Drug Data | PubMed (BioPython Entrez), DrugBank, RxNorm, openFDA — all parallel |
+| Drug Data | PubMed (BioPython Entrez), DrugBank, RxNorm, optional openFDA lookups |
 | Frontend | React 18 CDN + Tailwind CSS + Babel (zero build step) |
 | Observability | LangSmith tracing + token/latency tracking |
 | Validation | Pydantic v2 schemas + custom guardrail rules |
@@ -174,14 +190,6 @@ bash _smoke_test.sh
 
 Validates: health check, full analysis pipeline (~100s with 14 LLM calls), emergency mode (~3s), drug safety checks, classifier listing. Results are logged with timing.
 
-Latest run:
-
-```
-Health Check ................ PASS
-Full Analysis Pipeline ...... PASS (102s) — 4 differentials, 4 PubMed citations, 2 safety flags
-Emergency Mode .............. PASS (3s)  — ESI 1, 3 differentials, 4 red flags
-Drug Safety Check ........... PASS
-Classifiers ................. PASS (4 available)
-```
+Example latest run: all checks passed (health, full analysis, emergency mode, safety check, classifiers).
 
 ---
