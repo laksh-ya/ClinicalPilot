@@ -45,14 +45,20 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
+### 4. Configure a model engine
 
-```bash
-cp .env.example .env
-# Edit .env with your actual keys
-```
+**No API key is required to start.** ClinicalPilot defaults every agent and chat to
+**MedGemma via local Ollama** (see [Local LLM Setup](#local-llm-setup-optional--medgemma-via-ollama)).
 
-**Minimum required**: Set `OPENAI_API_KEY` in `.env` (for analysis pipeline) and `GROQ_API_KEY` (for AI chat)
+You have three ways to provide a model — pick any:
+- **Local (recommended, no key):** install Ollama + pull MedGemma. Nothing else to configure.
+- **Cloud, entered in the app:** just run it — when a call needs a cloud key, the UI prompts
+  you for exactly that key (stored in memory for the session).
+- **Cloud, hardcoded:** `cp .env.example .env` and set e.g. `GROQ_API_KEY` / `OPENAI_API_KEY`,
+  **or** hardcode in `config/secrets.local.py` (see [Model Engines & Routing](#model-engines--routing-configurable)).
+
+Everything about *which* engine each agent uses is configured live in the **Settings** tab or
+in `config/models.json` — not in `.env`.
 
 ### 5. Run the Application
 
@@ -61,7 +67,7 @@ cp .env.example .env
 python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Open http://localhost:8000 in your browser.
+Open http://localhost:8000 in your browser, then open **Settings** to configure engines and routing.
 
 ---
 
@@ -73,8 +79,8 @@ Open http://localhost:8000 in your browser.
 # Core framework
 pip install fastapi uvicorn[standard] python-multipart
 
-# LLM & Agents
-pip install openai langchain langchain-openai langchain-community
+# LLM & Agents (litellm = unified client for Ollama/OpenAI/Groq/Azure/Anthropic/any OpenAI-compatible endpoint)
+pip install litellm openai groq langchain langchain-openai langchain-community
 
 # Data models & validation
 pip install pydantic pydantic-settings
@@ -135,14 +141,18 @@ pip install https://github.com/explosion/spacy-models/releases/download/en_core_
 
 ## API Keys Setup
 
-### OpenAI (Required)
+> All LLM keys are **optional** — the app runs on local MedGemma with no key. Add a cloud key
+> only if you want to route some/all agents to a cloud engine. Any key here can be entered in the
+> **Settings** UI on demand instead of stored in `.env`. See
+> [Model Engines & Routing](#model-engines--routing-configurable) for hardcode-vs-ask details.
+
+### OpenAI (optional cloud engine)
 
 1. Go to https://platform.openai.com/api-keys
 2. Create a new API key
-3. Add to `.env`:
-   ```
-   OPENAI_API_KEY=sk-...your-key-here...
-   ```
+3. Provide it either way:
+   - **In the app:** Settings → Engines → *Cloud Quality* → paste the key, **or**
+   - **Hardcoded:** add `OPENAI_API_KEY=sk-...` to `.env` or `config/secrets.local.py`
 
 ### NCBI / PubMed (Recommended)
 
@@ -179,17 +189,17 @@ Without an API key, PubMed limits you to 3 requests/second (vs 10 with key).
 
 Works without a key but has lower rate limits.
 
-### Groq (Required for AI Chat)
+### Groq (optional cloud engine — the default fallback)
 
 1. Go to https://console.groq.com/keys
 2. Create a free API key
-3. Add to `.env`:
-   ```
-   GROQ_API_KEY=gsk_...your-key-here...
-   GROQ_MODEL=llama-3.3-70b-versatile
-   ```
+3. Provide it either way:
+   - **In the app:** Settings → Engines → *Cloud Fast* → paste the key, **or**
+   - **Hardcoded:** add `GROQ_API_KEY=gsk_...` to `.env` or `config/secrets.local.py`
 
-The AI Chat view uses Groq's Llama 3.3 70B for fast conversational clinical Q&A. Without this key, the chat endpoint returns 503 — the rest of the app works fine.
+*Cloud Fast* is the default fallback engine for every role. If a call routes to it and no key is
+available, the app returns a `needs_key` prompt (HTTP 428) so you can enter it — the rest of the
+app keeps working. To change which model it uses, edit the engine in Settings.
 
 ---
 
@@ -240,12 +250,17 @@ ollama serve
 ### Pull MedGemma Model
 
 ```bash
-# 9B version (~5GB, needs 16GB RAM)
-ollama pull medgemma2:9b
+# Pull whichever MedGemma tag your Ollama registry provides, e.g.:
+ollama pull medgemma        # or medgemma:4b / medgemma:27b, etc.
 
-# 27B version (~15GB, needs 32GB+ RAM)
-ollama pull medgemma2:27b
+# Verify what you have:
+ollama list
 ```
+
+> **Important:** the default engine's model name is `medgemma` (see `config/models.json`).
+> If your pulled tag differs (e.g. `medgemma:27b`), set it to match in
+> **Settings → Engines → MedGemma (Local) → Model** (or use the **discover** button to pick
+> from installed models). No restart needed.
 
 MedGemma via Ollama is the **default engine for every agent and chat** — no key required.
 If Ollama is unreachable, each role automatically falls back to its configured cloud engine.
@@ -336,29 +351,33 @@ docker-compose up --build
 
 ## Verification Checklist
 
-After setup, verify everything works:
+After setup, verify everything works. Steps 2–4 need a **runnable engine** — either Ollama
+serving your MedGemma tag, or a cloud key configured in Settings. Without one they return a
+clean `{"needs_key": ...}` (HTTP 428), which itself confirms routing works.
 
 ```bash
-# 1. Health check
+# 1. Health check (shows the active default engine)
 curl http://localhost:8000/api/health
 
-# 2. Test AI Chat (Groq)
+# 2. Model config (engines + per-agent routing; secret VALUES are redacted)
+curl http://localhost:8000/api/config/models
+
+# 3. Test AI Chat (routed via the 'chat' role)
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"messages": [{"role": "user", "content": "What are the red flags for chest pain?"}]}'
 
-# 3. Test with sample case (should return SOAP note — takes ~100s)
+# 4. Test with sample case (full multi-agent debate → SOAP note)
 curl -X POST http://localhost:8000/api/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "45-year-old male presenting with acute chest pain radiating to left arm, diaphoresis, and shortness of breath. History of hypertension and type 2 diabetes. Current medications: metformin 1000mg BID, lisinopril 20mg daily."}'
 
-# 4. Test emergency mode
-curl -X POST http://localhost:8000/api/emergency \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Unconscious patient, no pulse, bystander CPR in progress"}'
+# 5. Observability metrics (populates after any call above)
+curl http://localhost:8000/api/observability/summary
 
-# 5. Check API docs
+# 6. Check API docs / the app UI
 open http://localhost:8000/docs
+open http://localhost:8000/          # then: Settings tab + Observability tab
 ```
 
 ---
@@ -395,11 +414,16 @@ pip install certifi
 pip install lancedb --upgrade
 ```
 
-### "OPENAI_API_KEY not set"
-```bash
-cp .env.example .env
-# Edit .env and add your key
-```
+### "needs_key" / an API key prompt appears
+A call routed to a cloud engine and no key was found. Either:
+- enter the key when the app prompts (Settings → Engines), or
+- hardcode it: `cp config/secrets.local.example.py config/secrets.local.py` and set the key, or
+- switch that agent to a local engine in Settings → Routing.
+
+### Analysis/chat hangs ~12s then prompts for a key
+The engine is set to local MedGemma but Ollama isn't reachable, so it waits on the connection
+before falling back. Start Ollama (`ollama serve`), or in Settings → Routing point the role at a
+cloud engine (no local-connect wait).
 
 ### Port 8000 already in use
 ```bash
@@ -457,4 +481,4 @@ pip install -r requirements.txt --upgrade
 
 ---
 
-*Last updated: 2026-02-28*
+*Last updated: 2026-07-22*
