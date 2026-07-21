@@ -108,22 +108,23 @@ def _parse_panel(data: Any) -> MedErrorPanel:
     if isinstance(data, str):
         return MedErrorPanel(summary=data)
 
-    interactions = [
-        DrugInteraction(**i) for i in data.get("drug_interactions", [])
-        if isinstance(i, dict)
-    ]
-    contras = [
-        DrugDiseaseContraindication(**c) for c in data.get("contraindications", [])
-        if isinstance(c, dict)
-    ]
-    dosing = [
-        DosingAlert(**d) for d in data.get("dosing_alerts", [])
-        if isinstance(d, dict)
-    ]
-    population = [
-        PopulationFlag(**p) for p in data.get("population_flags", [])
-        if isinstance(p, dict)
-    ]
+    def _build(model, items):
+        out = []
+        if not isinstance(items, list):
+            return out
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            try:
+                out.append(model(**it))
+            except Exception as e:  # a single malformed item must not sink the panel
+                logger.debug("Skipping malformed %s item: %s", model.__name__, e)
+        return out
+
+    interactions = _build(DrugInteraction, data.get("drug_interactions", []))
+    contras = _build(DrugDiseaseContraindication, data.get("contraindications", []))
+    dosing = _build(DosingAlert, data.get("dosing_alerts", []))
+    population = _build(PopulationFlag, data.get("population_flags", []))
 
     return MedErrorPanel(
         drug_interactions=interactions,

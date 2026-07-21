@@ -68,6 +68,17 @@ def build_call_args(
         "max_tokens": mtok,
     }
 
+    # Stop sequences. Local models (Ollama) and OpenAI-compatible gateways serving open
+    # models (Gemma/MedGemma, Llama, Qwen…) often ship without a stop token configured,
+    # so they generate until max_tokens on every call — the classic "runs forever" hang.
+    # Default in the common turn-end markers for those providers; hosted APIs (openai,
+    # groq, anthropic) already stop correctly and are left alone unless overridden.
+    stop = prm.stop
+    if stop is None and profile.provider in ("ollama", "openai_compatible"):
+        stop = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"]
+    if stop:
+        args["stop"] = stop
+
     # base_url: profile value, overridable by a hardcoded/env url ref
     base_url = resolve_base_url(profile.base_url, profile.base_url)
     if base_url:

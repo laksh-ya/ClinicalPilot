@@ -101,10 +101,16 @@ def _parse_output(data: Any) -> SafetyAgentOutput:
         return SafetyAgentOutput(medication_review=data)
 
     flags = []
-    for f in data.get("flags", []):
+    raw_flags = data.get("flags", [])
+    for f in raw_flags if isinstance(raw_flags, list) else []:
+        if isinstance(f, str):
+            flags.append(SafetyFlag(category="general", severity="moderate", description=f))
+            continue
+        if not isinstance(f, dict):
+            continue
         flags.append(
             SafetyFlag(
-                category=f.get("category", ""),
+                category=f.get("category", "") or "general",
                 severity=f.get("severity", "moderate"),
                 description=f.get("description", ""),
                 mechanism=f.get("mechanism", ""),

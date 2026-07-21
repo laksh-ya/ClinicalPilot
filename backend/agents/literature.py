@@ -125,7 +125,13 @@ def _parse_output(data: Any) -> LiteratureAgentOutput:
         return LiteratureAgentOutput(summary=data)
 
     evidence = []
-    for e in data.get("evidence", []):
+    raw_ev = data.get("evidence", [])
+    for e in raw_ev if isinstance(raw_ev, list) else []:
+        if isinstance(e, str):
+            evidence.append(LiteratureHit(title=e))
+            continue
+        if not isinstance(e, dict):
+            continue
         evidence.append(
             LiteratureHit(
                 title=e.get("title", ""),
@@ -146,8 +152,6 @@ def _parse_output(data: Any) -> LiteratureAgentOutput:
     )
 
 
-def _parse_confidence(val: str) -> ConfidenceLevel:
-    try:
-        return ConfidenceLevel(val.lower())
-    except (ValueError, AttributeError):
-        return ConfidenceLevel.MEDIUM
+def _parse_confidence(val) -> ConfidenceLevel:
+    from backend.models.coerce import coerce_confidence
+    return ConfidenceLevel(coerce_confidence(val))

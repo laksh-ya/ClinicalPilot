@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .soap import ConfidenceLevel, Differential
+from .coerce import coerce_confidence, coerce_str_dict, coerce_str, coerce_str_list, coerce_bool
 
 
 class ClinicalAgentOutput(BaseModel):
@@ -17,6 +18,21 @@ class ClinicalAgentOutput(BaseModel):
     soap_draft: str = ""
     reasoning_trace: str = ""
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+
+    @field_validator("risk_scores", mode="before")
+    @classmethod
+    def _risk(cls, v):
+        return coerce_str_dict(v)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _conf(cls, v):
+        return coerce_confidence(v)
+
+    @field_validator("soap_draft", "reasoning_trace", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
 
 
 class LiteratureHit(BaseModel):
@@ -28,12 +44,37 @@ class LiteratureHit(BaseModel):
     snippet: str = ""
     relevance: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
+    @field_validator("relevance", mode="before")
+    @classmethod
+    def _rel(cls, v):
+        return coerce_confidence(v)
+
+    @field_validator("title", "authors", "journal", "year", "pmid", "snippet", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
+
 
 class LiteratureAgentOutput(BaseModel):
     evidence: list[LiteratureHit] = Field(default_factory=list)
     summary: str = ""
     contradictions: list[str] = Field(default_factory=list)
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def _conf(cls, v):
+        return coerce_confidence(v)
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
+
+    @field_validator("contradictions", mode="before")
+    @classmethod
+    def _list(cls, v):
+        return coerce_str_list(v)
 
 
 class SafetyFlag(BaseModel):
@@ -44,12 +85,32 @@ class SafetyFlag(BaseModel):
     recommendation: str = ""
     drugs_involved: list[str] = Field(default_factory=list)
 
+    @field_validator("category", "severity", "description", "mechanism", "recommendation", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
+
+    @field_validator("drugs_involved", mode="before")
+    @classmethod
+    def _list(cls, v):
+        return coerce_str_list(v)
+
 
 class SafetyAgentOutput(BaseModel):
     flags: list[SafetyFlag] = Field(default_factory=list)
     medication_review: str = ""
     dosing_alerts: list[str] = Field(default_factory=list)
     population_warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("medication_review", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
+
+    @field_validator("dosing_alerts", "population_warnings", mode="before")
+    @classmethod
+    def _lists(cls, v):
+        return coerce_str_list(v)
 
 
 class CriticOutput(BaseModel):
@@ -59,6 +120,21 @@ class CriticOutput(BaseModel):
     overall_assessment: str = ""
     consensus_reached: bool = False
     dissent_log: list[str] = Field(default_factory=list)
+
+    @field_validator("consensus_reached", mode="before")
+    @classmethod
+    def _bool(cls, v):
+        return coerce_bool(v)
+
+    @field_validator("overall_assessment", mode="before")
+    @classmethod
+    def _str(cls, v):
+        return coerce_str(v)
+
+    @field_validator("ehr_contradictions", "evidence_gaps", "safety_misses", "dissent_log", mode="before")
+    @classmethod
+    def _lists(cls, v):
+        return coerce_str_list(v)
 
 
 class DebateState(BaseModel):

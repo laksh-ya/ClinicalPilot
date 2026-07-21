@@ -34,6 +34,7 @@ class ProfileParams(BaseModel):
     temperature: float = 0.2
     max_tokens: int = 4096
     json_mode: bool = True
+    stop: Optional[list[str]] = None  # explicit stop sequences; None = provider-aware default
 
 
 class Profile(BaseModel):

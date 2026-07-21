@@ -57,10 +57,18 @@ def _parse_output(data: Any) -> ClinicalAgentOutput:
         return ClinicalAgentOutput(soap_draft=data, reasoning_trace=data)
 
     differentials = []
-    for d in data.get("differentials", []):
+    raw_ddx = data.get("differentials", [])
+    if isinstance(raw_ddx, dict):
+        raw_ddx = list(raw_ddx.values())
+    for d in raw_ddx if isinstance(raw_ddx, list) else []:
+        if isinstance(d, str):
+            differentials.append(Differential(diagnosis=d))
+            continue
+        if not isinstance(d, dict):
+            continue
         differentials.append(
             Differential(
-                diagnosis=d.get("diagnosis", ""),
+                diagnosis=d.get("diagnosis", "") or d.get("name", ""),
                 likelihood=d.get("likelihood", ""),
                 reasoning=d.get("reasoning", ""),
                 confidence=_parse_confidence(d.get("confidence", "medium")),
@@ -77,8 +85,6 @@ def _parse_output(data: Any) -> ClinicalAgentOutput:
     )
 
 
-def _parse_confidence(val: str) -> ConfidenceLevel:
-    try:
-        return ConfidenceLevel(val.lower())
-    except (ValueError, AttributeError):
-        return ConfidenceLevel.MEDIUM
+def _parse_confidence(val) -> ConfidenceLevel:
+    from backend.models.coerce import coerce_confidence
+    return ConfidenceLevel(coerce_confidence(val))

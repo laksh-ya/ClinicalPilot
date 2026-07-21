@@ -1216,9 +1216,10 @@ function EngineCard({prof,profiles,onChanged}){
       <div><label className={lbl}>Model <button onClick={discover} className="text-brand-400 hover:text-brand-300 lowercase ml-1">discover</button></label><input className={inp} value={p.model} onChange={e=>upd('model',e.target.value)} placeholder="e.g. medgemma"/></div>
       <div><label className={lbl}>Base URL</label><input className={inp} value={p.base_url||''} onChange={e=>upd('base_url',e.target.value||null)} placeholder="provider default"/></div>
       <div><label className={lbl}>Key ref</label><input className={inp} value={p.api_key_ref||''} onChange={e=>upd('api_key_ref',e.target.value||null)} placeholder="none (e.g. local)"/></div>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         <div><label className={lbl}>Temp</label><input className={inp} type="number" step="0.1" value={p.params.temperature} onChange={e=>updParam('temperature',parseFloat(e.target.value))}/></div>
         <div><label className={lbl}>Max tok</label><input className={inp} type="number" value={p.params.max_tokens} onChange={e=>updParam('max_tokens',parseInt(e.target.value)||0)}/></div>
+        <div><label className={lbl} title="Force JSON output. Turn OFF for small local models that stall under JSON grammar — replies are still parsed.">JSON</label><button onClick={()=>updParam('json_mode',!p.params.json_mode)} className={`${inp} text-left ${p.params.json_mode?'text-emerald-400':'text-amber-400'}`}>{p.params.json_mode?'on':'off'}</button></div>
         <div><label className={lbl}>Serial</label><button onClick={()=>upd('serialize',!p.serialize)} className={`${inp} text-left ${p.serialize?'text-emerald-400':'text-zinc-500'}`}>{p.serialize?'yes':'no'}</button></div>
       </div>
     </div>
