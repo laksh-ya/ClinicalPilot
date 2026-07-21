@@ -13,7 +13,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from backend.config import get_effective
+from backend.llm.registry import resolve_role
+from backend.agents.llm_client import set_call_context
 from backend.models.patient import PatientContext
 from backend.models.agents import (
     ClinicalAgentOutput,
@@ -39,6 +40,7 @@ async def run_debate(
 
     for round_num in range(1, max_rounds + 1):
         state.round_number = round_num
+        set_call_context(debate_round=round_num)
         logger.info(f"Debate Round {round_num}/{max_rounds}")
 
         if round_num == 1:
@@ -84,12 +86,18 @@ async def run_debate(
     return state
 
 
-def _using_groq() -> bool:
-    """Return True when the active LLM provider is Groq (no OpenAI key)."""
-    return not get_effective("openai_api_key")
+def _should_serialize() -> bool:
+    """Run agents sequentially when the parallel roles resolve to a rate-limited
+    profile (profile.serialize=True, e.g. a free cloud tier). Local/standard
+    profiles run in parallel."""
+    for role in ("literature", "safety"):
+        profiles = resolve_role(role)
+        if profiles and profiles[0].serialize:
+            return True
+    return False
 
 
-# Small delay between sequential Groq calls to respect free-tier TPM limits
+# Small delay between sequential calls to respect free-tier rate limits
 _GROQ_INTER_CALL_DELAY = 2.0
 
 
@@ -104,7 +112,7 @@ async def _round_1(
     # Clinical runs first (literature needs its output)
     clinical = await run_clinical_agent(patient)
 
-    if _using_groq():
+    if _should_serialize():
         # Sequential execution to stay within Groq free-tier rate limits
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
         literature = await run_literature_agent(patient, clinical_output=clinical)
@@ -133,7 +141,7 @@ async def _revision_round(
     # Clinical revises first
     clinical = await run_clinical_agent(patient, critique=critique_text)
 
-    if _using_groq():
+    if _should_serialize():
         # Sequential execution to stay within Groq free-tier rate limits
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
         literature = await run_literature_agent(

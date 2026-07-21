@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "profiles": {
+    "medgemma-local": {
+      "id": "medgemma-local",
+      "label": "MedGemma (Local)",
+      "provider": "ollama",
+      "model": "medgemma",
+      "base_url": "http://localhost:11434",
+      "api_key_ref": null,
+      "serialize": false,
+      "params": {
+        "temperature": 0.2,
+        "max_tokens": 4096,
+        "json_mode": true
+      }
+    },
+    "cloud-fast": {
+      "id": "cloud-fast",
+      "label": "Cloud Fast",
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "base_url": null,
+      "api_key_ref": "GROQ_API_KEY",
+      "serialize": true,
+      "params": {
+        "temperature": 0.2,
+        "max_tokens": 2048,
+        "json_mode": true
+      }
+    },
+    "cloud-quality": {
+      "id": "cloud-quality",
+      "label": "Cloud Quality",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "base_url": null,
+      "api_key_ref": "OPENAI_API_KEY",
+      "serialize": false,
+      "params": {
+        "temperature": 0.2,
+        "max_tokens": 4096,
+        "json_mode": true
+      }
+    }
+  },
+  "roles": {
+    "default": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "chat": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "clinical": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "literature": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "safety": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "critic": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "synthesizer": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "emergency": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    },
+    "med_panel": {
+      "primary": "medgemma-local",
+      "fallbacks": [
+        "cloud-fast"
+      ]
+    }
+  },
+  "debate": {
+    "max_rounds": 3,
+    "min_rounds": 1,
+    "consensus_required": true
+  },
+  "observability": {
+    "sqlite": true,
+    "langfuse": false,
+    "langsmith": false
+  }
+}

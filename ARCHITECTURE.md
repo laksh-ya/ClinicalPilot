@@ -124,13 +124,22 @@ clinicalpilot/
 | Literature | Provider-aware (fast model where available) | PubMed (BioPython Entrez), RAG (LanceDB) | Evidence snippets, confidence, contradictions |
 | Safety | Provider-aware + rule-based checks | DrugBank CSV, RxNorm, optional openFDA | Structured warnings with severity |
 
+### Model Routing (LiteLLM-backed)
+All model calls go through a **role → engine registry** (`config/models.json`), resolved by
+`backend/llm/`. Every agent + chat is a *role* mapping to a **primary engine + fallbacks**;
+each engine is any provider/model/base_url/key (Ollama, OpenAI, Groq, Azure, Anthropic, or
+any OpenAI-compatible endpoint) via **LiteLLM**. Default: everything → MedGemma (local Ollama),
+fallback → a cloud engine. Keys resolve **hardcoded → runtime(UI) → ask** (428 `needs_key`).
+Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_SYSTEM_PLAN.md`.
+
 ### AI Chat Service
 - Endpoint: `POST /api/chat`
-- Provider strategy: OpenAI first, Groq fallback
-- Purpose: Fast conversational clinical Q&A — sub-second responses, no agent/debate overhead
+- Engine: the `chat` role (configurable; defaults to MedGemma with a cloud fallback)
+- Purpose: Fast conversational clinical Q&A — no agent/debate overhead
 - Maintains full conversation history (multi-turn)
 - Uses a dedicated clinical system prompt (evidence-based, structured formatting, safety-first)
-- Runtime key management supported via `/api/config-status` and `/api/set-api-key`
+- Runtime config via `/api/config/*`; robust cross-provider JSON parsing handles formatting
+  differences between providers
 
 ### Layer 4: Debate Layer
 - **Per Round**: Clinical agent → Literature + Safety → Critic
@@ -235,9 +244,18 @@ clinicalpilot/
 |--------|------|-------------|
 | POST | `/api/analyze` | Full analysis pipeline (input → debate → SOAP) |
 | POST | `/api/emergency` | Emergency mode (fast path, <5s) |
-| GET | `/api/config-status` | Returns configured providers and active provider |
-| POST | `/api/set-api-key` | Set OpenAI/Groq API key at runtime (memory only) |
-| POST | `/api/chat` | AI chat (OpenAI first, Groq fallback) |
+| GET | `/api/config-status` | Compact active-engine status for the UI |
+| GET/PUT | `/api/config/models` | Read/replace full engine + routing config |
+| POST/DELETE | `/api/config/profiles[/{id}]` | Create/update/delete an engine |
+| PUT | `/api/config/roles/{role}` | Set an agent's primary + fallbacks |
+| PUT | `/api/config/debate` | Set debate rounds / consensus |
+| POST | `/api/config/secret` | Set a key at runtime (memory only) |
+| POST | `/api/config/test` | Live connection test for an engine |
+| GET | `/api/config/discover` | List models at an engine's endpoint |
+| GET | `/api/observability/summary` | Call/agent/provider/model metrics |
+| GET | `/api/observability/traces` | Recent per-call traces |
+| POST | `/api/set-api-key` | Legacy alias → `/api/config/secret` |
+| POST | `/api/chat` | AI chat (routed via the `chat` role) |
 | POST | `/api/upload/fhir` | Upload FHIR bundle JSON |
 | POST | `/api/upload/ehr` | Upload PDF/CSV EHR document |
 | POST | `/api/human-feedback` | Doctor edits → re-debate |

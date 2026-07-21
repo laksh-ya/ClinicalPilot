@@ -247,15 +247,47 @@ ollama pull medgemma2:9b
 ollama pull medgemma2:27b
 ```
 
-### Configure .env
+MedGemma via Ollama is the **default engine for every agent and chat** — no key required.
+If Ollama is unreachable, each role automatically falls back to its configured cloud engine.
 
-```
-USE_LOCAL_LLM=true
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=medgemma2:9b
-```
+---
 
-**Fallback behavior**: If Ollama is unreachable, the system automatically falls back to OpenAI.
+## Model Engines & Routing (configurable)
+
+ClinicalPilot routes every model call through a **registry** you can edit live in the app
+(**Settings** tab) or on disk (`config/models.json`). Backed by **LiteLLM**, it supports
+Ollama, OpenAI, Groq, Azure, Anthropic, and **any OpenAI-compatible endpoint** (OpenRouter,
+vLLM, LM Studio, a gateway) — any model, any base URL, any key.
+
+### Concepts
+- **Engine (profile)** — one model on one provider: `{provider, model, base_url, api_key_ref}`.
+- **Role** — each agent + chat (`clinical, literature, safety, critic, synthesizer,
+  emergency, med_panel, chat`) maps to a **primary engine + fallbacks**.
+- Default: everything → **MedGemma (Local)**, fallback → a cloud engine.
+
+### Configure in the UI
+Open **Settings** (gear icon or the Settings view):
+- **Engines** — add/edit engines, set model/base URL/key, **Test** the connection, **discover** installed models.
+- **Routing** — pick which engine each agent uses (e.g. run the critic on the cloud, everything else on MedGemma).
+- **Debate** — increase/decrease max debate rounds.
+
+### Hardcode keys (so you're never prompted) — OR let the app ask
+Resolution order for every key: **hardcoded → runtime (UI) → ask on demand**.
+
+To hardcode:
+```bash
+cp config/secrets.local.example.py config/secrets.local.py
+# then edit config/secrets.local.py:
+#   HARDCODED_KEYS = {"GROQ_API_KEY": "gsk_...", "OPENAI_API_KEY": "sk-..."}
+```
+`config/secrets.local.py` is gitignored and never committed. Environment variables / `.env`
+work the same way. If a key is **not** hardcoded, the app returns a prompt and you enter it
+in the UI (stored in memory only, cleared on restart).
+
+### Example: MedGemma everywhere, cloud only as fallback
+1. Ollama running with `ollama pull medgemma` (default engine).
+2. Settings → Engines → **Cloud Fast** → set the key (or hardcode `GROQ_API_KEY`).
+3. Done — local-first, with an automatic cloud fallback when Ollama is down or you're online-only.
 
 ---
 

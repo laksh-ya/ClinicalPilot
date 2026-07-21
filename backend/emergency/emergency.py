@@ -13,7 +13,6 @@ import logging
 import time
 from typing import Any
 
-from backend.config import get_settings
 from backend.models.patient import PatientContext
 from backend.models.soap import ConfidenceLevel, Differential, EmergencyOutput
 from backend.agents.llm_client import llm_call, load_prompt
@@ -34,7 +33,6 @@ async def emergency_analyze(text: str) -> EmergencyOutput:
     Runs: Emergency triage + Safety check in parallel.
     """
     start = time.monotonic()
-    settings = get_settings()
 
     # Quick parse
     patient = parse_text_input(text)
@@ -80,6 +78,7 @@ RESPOND IMMEDIATELY. Top 3 differentials, red flags, ESI score, and call to acti
     result = await llm_call(
         system_prompt=system_prompt,
         user_message=user_message,
+        role="emergency",
         json_mode=True,
         max_tokens=1500,  # Keep response short for speed
         temperature=0.1,  # More deterministic in emergencies
@@ -106,11 +105,10 @@ async def _run_quick_safety(patient: PatientContext) -> list[str]:
     user_message = f"Medications: {meds}\nConditions: {conditions}"
 
     try:
-        settings = get_settings()
         result = await llm_call(
             system_prompt=system_prompt,
             user_message=user_message,
-            model=settings.openai_fast_model,
+            role="emergency",
             json_mode=True,
             max_tokens=500,
         )

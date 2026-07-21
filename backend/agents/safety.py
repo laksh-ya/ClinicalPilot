@@ -56,6 +56,7 @@ async def run_safety_agent(
     result = await llm_call(
         system_prompt=system_prompt,
         user_message=user_message,
+        role="safety",
         json_mode=True,
     )
 

@@ -11,6 +11,10 @@ build/
 # Environment
 .env
 
+# Hardcoded secrets (NEVER commit) + local observability DB
+config/secrets.local.py
+data/observability.db
+
 # Data (large files)
 data/lancedb/
 data/drugbank/*.csv

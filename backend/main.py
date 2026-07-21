@@ -35,15 +35,21 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import get_settings, PROJECT_ROOT, set_runtime_override, get_effective
+from backend.config import get_settings, PROJECT_ROOT
 from backend.models.patient import AnalysisRequest, PatientContext
 from backend.models.soap import SOAPNote, EmergencyOutput
 from backend.models.safety import MedErrorPanel
+
+from backend.llm import registry
+from backend.llm.registry import Profile, RoleRoute, DebateConfig, ObservabilityConfig, ROLE_NAMES
+from backend.llm.secrets import set_runtime_secret, secret_status, NeedsKey, resolve_secret
+from backend.agents.llm_client import llm_call, set_call_context
+from backend.observability import store as obs_store
 
 # ── Logging ─────────────────────────────────────────────
 logging.basicConfig(
@@ -72,6 +78,20 @@ app.add_middleware(
 )
 
 
+# ── Missing-key handler → 428 so the UI can prompt for exactly that key ──
+@app.exception_handler(NeedsKey)
+async def needs_key_handler(request: Request, exc: NeedsKey):
+    return JSONResponse(
+        status_code=428,
+        content={
+            "needs_key": True,
+            "key_ref": exc.key_ref,
+            "profile": exc.profile_id,
+            "detail": f"An API key is required for '{exc.profile_id}'. Add it in Settings.",
+        },
+    )
+
+
 # ── Startup ─────────────────────────────────────────────
 @app.on_event("startup")
 async def startup():
@@ -95,66 +115,245 @@ async def startup():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
+    default_profiles = registry.resolve_role("default")
+    primary = default_profiles[0] if default_profiles else None
     return {
         "status": "ok",
         "service": "clinicalpilot",
-        "version": "1.0.0",
-        "model": settings.openai_model,
-        "local_llm": settings.use_local_llm,
+        "version": "2.0.0",
+        "model": primary.model if primary else "",
+        "engine": primary.label if primary else "",
     }
+
+
+def _default_active_provider() -> str:
+    """The provider that the default role would actually run on right now."""
+    for prof in registry.resolve_role("default"):
+        if not prof.api_key_ref or resolve_secret(prof.api_key_ref):
+            return prof.provider
+    return "none"
 
 
 @app.get("/api/config-status")
 async def config_status():
-    """Return which LLM providers are configured and active."""
-    openai_key = get_effective("openai_api_key")
-    groq_key = get_effective("groq_api_key")
-    has_openai = bool(openai_key)
-    has_groq = bool(groq_key)
-
-    if has_openai:
-        active_provider = "openai"
-    elif has_groq:
-        active_provider = "groq"
-    elif settings.use_local_llm:
-        active_provider = "ollama"
-    else:
-        active_provider = "none"
-
+    """Compact status for the navbar/banner. Reflects the ACTUAL runnable default."""
+    active = _default_active_provider()
+    default_profiles = registry.resolve_role("default")
+    primary = default_profiles[0] if default_profiles else None
     return {
-        "has_openai_key": has_openai,
-        "has_groq_key": has_groq,
-        "use_local_llm": settings.use_local_llm,
-        "active_provider": active_provider,
-        "openai_model": settings.openai_model,
-        "groq_model": settings.groq_model,
+        # back-compat fields (older frontend builds read these)
+        "has_openai_key": secret_status("OPENAI_API_KEY") in ("hardcoded", "runtime"),
+        "has_groq_key": secret_status("GROQ_API_KEY") in ("hardcoded", "runtime"),
+        "use_local_llm": active == "ollama",
+        "active_provider": active,
+        "openai_model": (registry.get_profile("cloud-quality").model
+                         if registry.get_profile("cloud-quality") else ""),
+        "groq_model": (registry.get_profile("cloud-fast").model
+                       if registry.get_profile("cloud-fast") else ""),
+        # new: generic engine label for de-branded UI
+        "engine_label": primary.label if primary else "Not configured",
+        "engine_model": primary.model if primary else "",
     }
 
 
 @app.post("/api/set-api-key")
 async def set_api_key(payload: dict):
-    """
-    Set OpenAI API key at runtime (stored in memory only, not persisted).
-    Accepts {openai_api_key: "sk-..."} and/or {groq_api_key: "gsk_..."}.
-    """
+    """Back-compat alias — maps legacy openai/groq keys onto the new secret store."""
     updated = []
-
-    openai_key = payload.get("openai_api_key", "").strip()
-    if openai_key:
-        set_runtime_override("openai_api_key", openai_key)
-        updated.append("openai_api_key")
-        logger.info("OpenAI API key set via runtime override")
-
-    groq_key = payload.get("groq_api_key", "").strip()
-    if groq_key:
-        set_runtime_override("groq_api_key", groq_key)
-        updated.append("groq_api_key")
-        logger.info("Groq API key set via runtime override")
-
+    if payload.get("openai_api_key", "").strip():
+        set_runtime_secret("OPENAI_API_KEY", payload["openai_api_key"].strip())
+        updated.append("OPENAI_API_KEY")
+    if payload.get("groq_api_key", "").strip():
+        set_runtime_secret("GROQ_API_KEY", payload["groq_api_key"].strip())
+        updated.append("GROQ_API_KEY")
     if not updated:
         raise HTTPException(400, "No valid API key provided")
-
     return {"status": "ok", "updated": updated}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  CONFIGURATION API — profiles, routing, secrets, debate
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _redact_config() -> dict:
+    """Full config with secret VALUES never included — only a status per key ref."""
+    cfg = registry.load_config()
+    data = cfg.model_dump()
+    for pid, prof in data["profiles"].items():
+        ref = prof.get("api_key_ref")
+        prof["key_status"] = secret_status(ref)  # none | hardcoded | runtime | missing
+    data["roles_available"] = ROLE_NAMES
+    data["providers_available"] = [
+        "ollama", "openai", "groq", "anthropic", "azure", "openai_compatible",
+    ]
+    return data
+
+
+@app.get("/api/config/models")
+async def get_models_config():
+    """Full model routing config (secret values redacted)."""
+    return _redact_config()
+
+
+@app.put("/api/config/models")
+async def put_models_config(payload: dict):
+    """Replace the entire config (used by 'save all' in the UI)."""
+    try:
+        cfg = registry.ModelsConfig.model_validate(payload)
+        registry.save_config(cfg)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid config: {e}")
+    return _redact_config()
+
+
+@app.post("/api/config/profiles")
+async def upsert_profile(payload: dict):
+    """Create or update one connection profile."""
+    try:
+        prof = Profile.model_validate(payload)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid profile: {e}")
+    registry.upsert_profile(prof)
+    return _redact_config()
+
+
+@app.delete("/api/config/profiles/{profile_id}")
+async def delete_profile(profile_id: str):
+    registry.delete_profile(profile_id)
+    return _redact_config()
+
+
+@app.put("/api/config/roles/{role}")
+async def set_role(role: str, payload: dict):
+    """Set a role's primary + fallback profiles."""
+    if role not in ROLE_NAMES:
+        raise HTTPException(400, f"Unknown role '{role}'")
+    try:
+        route = RoleRoute.model_validate(payload)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid route: {e}")
+    registry.set_role(role, route)
+    return _redact_config()
+
+
+@app.put("/api/config/debate")
+async def set_debate(payload: dict):
+    try:
+        debate = DebateConfig.model_validate(payload)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid debate config: {e}")
+    registry.set_debate(debate)
+    return _redact_config()
+
+
+@app.put("/api/config/observability")
+async def set_observability(payload: dict):
+    try:
+        obs = ObservabilityConfig.model_validate(payload)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid observability config: {e}")
+    registry.set_observability(obs)
+    return _redact_config()
+
+
+@app.post("/api/config/secret")
+async def set_secret(payload: dict):
+    """Store a key entered in the UI (memory only). {key_ref, value}."""
+    key_ref = (payload.get("key_ref") or "").strip()
+    value = (payload.get("value") or "").strip()
+    if not key_ref or not value:
+        raise HTTPException(400, "key_ref and value are required")
+    set_runtime_secret(key_ref, value)
+    return {"status": "ok", "key_ref": key_ref, "key_status": secret_status(key_ref)}
+
+
+@app.post("/api/config/test")
+async def test_profile(payload: dict):
+    """Live connection test for a profile: a tiny real completion round-trip."""
+    prof_id = payload.get("profile_id")
+    prof = registry.get_profile(prof_id) if prof_id else None
+    if not prof:
+        # allow testing an unsaved draft profile too
+        try:
+            prof = Profile.model_validate(payload.get("profile", {}))
+        except Exception:
+            raise HTTPException(400, "Provide profile_id or a profile object")
+
+    if prof.api_key_ref and not resolve_secret(prof.api_key_ref):
+        return {"ok": False, "error": f"No key for {prof.api_key_ref}", "needs_key": prof.api_key_ref}
+
+    # Force this exact profile (bypass routing/fallback) for a true single-profile test.
+    from backend.agents.llm_client import _call_profile
+    try:
+        t0 = time.time()
+        res = await _call_profile(
+            prof,
+            "You are a connection test. Reply with a short JSON object.",
+            'Reply with exactly {"ok": true}.',
+            json_mode=True, temperature=0.0, max_tokens=32,
+            role="__test__", request_id="conn-test", debate_round=None, fallback_index=0,
+        )
+        return {
+            "ok": True, "latency_ms": int((time.time() - t0) * 1000),
+            "model": res.get("model"), "provider": res.get("provider"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/config/discover")
+async def discover_models(profile_id: str = ""):
+    """List models available at a profile's endpoint (Ollama /api/tags or /v1/models)."""
+    prof = registry.get_profile(profile_id)
+    if not prof:
+        raise HTTPException(404, "Unknown profile")
+    import httpx
+    models: list[str] = []
+    try:
+        if prof.provider == "ollama":
+            base = prof.base_url or "http://localhost:11434"
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(f"{base.rstrip('/')}/api/tags")
+                r.raise_for_status()
+                models = [m["name"] for m in r.json().get("models", [])]
+        else:
+            base = prof.base_url or "https://api.openai.com/v1"
+            headers = {}
+            key = resolve_secret(prof.api_key_ref)
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(f"{base.rstrip('/')}/models", headers=headers)
+                r.raise_for_status()
+                models = [m["id"] for m in r.json().get("data", [])]
+    except Exception as e:
+        return {"ok": False, "error": str(e), "models": []}
+    return {"ok": True, "models": sorted(models)}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  OBSERVABILITY API
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@app.get("/api/observability/summary")
+async def observability_summary():
+    return obs_store.get_summary()
+
+
+@app.get("/api/observability/traces")
+async def observability_traces(limit: int = 200, role: str = "", request_id: str = ""):
+    return {"traces": obs_store.get_traces(limit=limit, role=role, request_id=request_id)}
+
+
+@app.get("/api/observability/run/{request_id}")
+async def observability_run(request_id: str):
+    return {"request_id": request_id, "traces": obs_store.get_traces(limit=500, request_id=request_id)}
+
+
+@app.delete("/api/observability/traces")
+async def observability_clear():
+    obs_store.clear()
+    return {"status": "ok"}
 
 
 @app.post("/api/analyze", response_model=dict)
@@ -166,6 +365,8 @@ async def analyze(request: AnalysisRequest):
     if not request.text and not request.fhir_bundle and not request.patient_context:
         raise HTTPException(400, "Must provide text, fhir_bundle, or patient_context")
 
+    request_id = obs_store.new_request_id()
+    set_call_context(request_id=request_id)
     try:
         from backend.agents.orchestrator import full_pipeline
         from backend.safety_panel.med_errors import run_med_error_panel
@@ -186,10 +387,13 @@ async def analyze(request: AnalysisRequest):
         )
 
         return {
+            "request_id": request_id,
             "soap": soap.model_dump(),
             "debate": debate_state.model_dump(),
             "med_error_panel": med_panel.model_dump(),
         }
+    except NeedsKey:
+        raise
     except Exception as e:
         logger.exception("Analysis failed")
         raise HTTPException(500, f"Analysis failed: {str(e)}")
@@ -204,11 +408,15 @@ async def emergency(request: AnalysisRequest):
     if not request.text:
         raise HTTPException(400, "Must provide text for emergency mode")
 
+    request_id = obs_store.new_request_id()
+    set_call_context(request_id=request_id)
     try:
         from backend.emergency.emergency import emergency_analyze
 
         result = await emergency_analyze(request.text)
-        return {"emergency": result.model_dump()}
+        return {"request_id": request_id, "emergency": result.model_dump()}
+    except NeedsKey:
+        raise
     except Exception as e:
         logger.exception("Emergency analysis failed")
         raise HTTPException(500, f"Emergency analysis failed: {str(e)}")
@@ -362,7 +570,7 @@ async def get_classifiers():
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  AI CHAT (Groq — lightweight, no agents)
+#  AI CHAT (lightweight conversational Q&A, no agents/debate)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CHAT_SYSTEM_PROMPT = """You are ClinicalPilot AI, a clinical decision-support assistant for healthcare professionals.
@@ -383,81 +591,40 @@ IMPORTANT: In future you will have access to a LanceDB vector store with indexed
 @app.post("/api/chat")
 async def chat(payload: dict):
     """
-    AI chat — tries OpenAI first, falls back to Groq.
+    AI chat — routed through the 'chat' role (configurable engine + fallback).
     Accepts {messages: [{role, content}, ...]} with conversation history.
     """
     messages = payload.get("messages", [])
     if not messages:
         raise HTTPException(400, "No messages provided")
 
-    openai_key = get_effective("openai_api_key")
-    groq_key = get_effective("groq_api_key")
+    # Flatten the multi-turn history into a single user message so it works across
+    # any provider (local Ollama included) without provider-specific chat plumbing.
+    convo = "\n\n".join(f"{m['role'].upper()}: {m['content']}" for m in messages)
+    set_call_context(request_id=obs_store.new_request_id())
 
-    if not openai_key and not groq_key:
-        raise HTTPException(
-            503,
-            "No LLM API key configured. Please set your OpenAI API key in Settings, or add GROQ_API_KEY to .env"
-        )
-
-    full_messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}] + [
-        {"role": m["role"], "content": m["content"]} for m in messages
-    ]
-
-    # Try OpenAI first
-    if openai_key:
-        try:
-            from openai import OpenAI as SyncOpenAI
-
-            client = SyncOpenAI(api_key=openai_key)
-
-            t0 = time.time()
-            completion = client.chat.completions.create(
-                model=settings.openai_model,
-                messages=full_messages,
-                temperature=0.3,
-                max_tokens=2048,
-            )
-            latency_ms = int((time.time() - t0) * 1000)
-
-            reply = completion.choices[0].message.content
-            return {
-                "reply": reply,
-                "model": settings.openai_model,
-                "provider": "openai",
-                "latency_ms": latency_ms,
-                "tokens": getattr(completion.usage, "total_tokens", None),
-            }
-        except Exception as e:
-            logger.warning(f"OpenAI chat failed ({e}), falling back to Groq")
-            if not groq_key:
-                raise HTTPException(500, f"OpenAI chat failed and no Groq fallback: {str(e)}")
-
-    # Fallback to Groq
     try:
-        from groq import Groq
-
-        client = Groq(api_key=groq_key)
-
-        t0 = time.time()
-        completion = client.chat.completions.create(
-            model=settings.groq_model,
-            messages=full_messages,
+        result = await llm_call(
+            system_prompt=CHAT_SYSTEM_PROMPT,
+            user_message=convo,
+            role="chat",
+            json_mode=False,       # chat is free-form prose, not JSON
             temperature=0.3,
             max_tokens=2048,
         )
-        latency_ms = int((time.time() - t0) * 1000)
-
-        reply = completion.choices[0].message.content
-        return {
-            "reply": reply,
-            "model": settings.groq_model,
-            "provider": "groq",
-            "latency_ms": latency_ms,
-            "tokens": getattr(completion.usage, "total_tokens", None),
-        }
+    except NeedsKey:
+        raise  # handled globally → 428 so the UI can prompt for the key
     except Exception as e:
-        logger.exception("Chat failed on all providers")
-        raise HTTPException(500, f"Chat failed: {str(e)}")
+        logger.warning(f"Chat failed: {e}")
+        raise HTTPException(503, f"The AI engine is unavailable right now: {e}")
+
+    return {
+        "reply": result["content"],
+        "model": result["model"],
+        "provider": result["provider"],
+        "latency_ms": result["latency_ms"],
+        "tokens": result.get("tokens"),
+    }
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -492,73 +659,48 @@ async def ws_analyze(websocket: WebSocket):
         patient = parse_text_input(clean_text)
         patient.current_prompt = text
 
-        await send_status("agents", "Running Clinical Agent...")
+        # Group all calls of this run under one request id for observability.
+        request_id = obs_store.new_request_id()
+        set_call_context(request_id=request_id)
 
-        from backend.agents.clinical import run_clinical_agent
-        clinical = await run_clinical_agent(patient)
-        await websocket.send_json({
-            "type": "agent_result",
-            "agent": "clinical",
-            "data": clinical.model_dump(),
-        })
-
-        await send_status("agents", "Running Literature & Safety Agents...")
-
-        from backend.agents.literature import run_literature_agent
-        from backend.agents.safety import run_safety_agent
-
-        literature, safety = await asyncio.gather(
-            run_literature_agent(patient, clinical_output=clinical),
-            run_safety_agent(patient, proposed_plan=clinical.soap_draft),
-        )
-
-        await websocket.send_json({
-            "type": "agent_result",
-            "agent": "literature",
-            "data": literature.model_dump(),
-        })
-        await websocket.send_json({
-            "type": "agent_result",
-            "agent": "safety",
-            "data": safety.model_dump(),
-        })
-
-        await send_status("debate", "Critic Agent reviewing...")
-
-        from backend.agents.critic import run_critic_agent
-        critic = await run_critic_agent(patient, clinical, literature, safety)
-        await websocket.send_json({
-            "type": "agent_result",
-            "agent": "critic",
-            "data": critic.model_dump(),
-        })
-
-        await send_status("synthesis", "Generating final SOAP note...")
-
-        from backend.models.agents import DebateState
-        debate_state = DebateState(
-            round_number=1,
-            clinical_outputs=[clinical],
-            literature_outputs=[literature],
-            safety_outputs=[safety],
-            critic_outputs=[critic],
-            final_consensus=critic.consensus_reached,
-        )
-
+        from backend.debate.debate_engine import run_debate
+        from backend.llm.registry import get_debate
         from backend.validation.synthesizer import synthesize_soap
         from backend.validation.validator import validate_output
+        from backend.safety_panel.med_errors import run_med_error_panel
 
+        debate_cfg = get_debate()
+        max_rounds = data.get("max_debate_rounds") or debate_cfg.max_rounds
+        max_rounds = max(debate_cfg.min_rounds, min(int(max_rounds), 10))
+
+        await send_status("agents", f"Running multi-agent debate (up to {max_rounds} rounds)...")
+
+        # Real multi-round debate + med-error panel in parallel (same path as REST).
+        debate_state, med_panel = await asyncio.gather(
+            run_debate(patient, max_rounds=max_rounds),
+            run_med_error_panel(patient),
+        )
+
+        # Stream the final-round output of each agent.
+        for agent_name, outs in (
+            ("clinical", debate_state.clinical_outputs),
+            ("literature", debate_state.literature_outputs),
+            ("safety", debate_state.safety_outputs),
+            ("critic", debate_state.critic_outputs),
+        ):
+            if outs:
+                await websocket.send_json({
+                    "type": "agent_result", "agent": agent_name, "data": outs[-1].model_dump(),
+                })
+
+        await send_status("synthesis", "Generating final SOAP note...")
         soap = await synthesize_soap(patient, debate_state)
         soap = validate_output(soap)
-
-        await send_status("safety_panel", "Running medication safety panel...")
-
-        from backend.safety_panel.med_errors import run_med_error_panel
-        med_panel = await run_med_error_panel(patient)
 
         # Send final result
         await websocket.send_json({
             "type": "complete",
+            "request_id": request_id,
             "soap": soap.model_dump(),
             "debate": debate_state.model_dump(),
             "med_error_panel": med_panel.model_dump(),
@@ -591,7 +733,7 @@ async def serve_frontend():
     """Serve the main frontend page."""
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
-        return HTMLResponse(index_path.read_text())
+        return HTMLResponse(index_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>ClinicalPilot</h1><p>Frontend not found. Place files in /frontend/</p>")
 
 

@@ -137,6 +137,19 @@ body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#fafafa;o
 const{useState,useEffect,useRef,useCallback,createContext,useContext,useMemo,memo,useReducer}=React;
 const API=window.location.origin;
 
+// Global hook set by App so any fetch can trigger the "enter this key" prompt.
+let _cpPromptKey=null;
+// fetch wrapper: on a 428 needs_key response, open the key prompt and throw a friendly error.
+async function cpFetch(url,opts){
+  const r=await fetch(url,opts);
+  if(r.status===428){
+    const j=await r.json().catch(()=>({}));
+    if(j&&j.needs_key&&_cpPromptKey)_cpPromptKey(j.key_ref,j.profile);
+    throw new Error(j&&j.detail?j.detail:'An API key is required — open Settings to add it.');
+  }
+  return r;
+}
+
 /* ════════════════════════════════════════════════════════
    ICONS — inline SVG (zero dependencies)
    ════════════════════════════════════════════════════════ */
@@ -321,94 +334,6 @@ const FLOW_DIAGRAM=`sequenceDiagram
   F-->>D: Report + Safety
   Note over D,K: Human feedback re-triggers debate`;
 
-/* ════════════════════════════════════════════════════════
-   API KEY / SETTINGS MODAL
-   ════════════════════════════════════════════════════════ */
-function ApiKeyModal({show,onClose,onSaved}){
-  const t=useToast();
-  const[openaiKey,setOpenaiKey]=useState('');
-  const[groqKey,setGroqKey]=useState('');
-  const[saving,setSaving]=useState(false);
-  const[configStatus,setConfigStatus]=useState(null);
-
-  useEffect(()=>{
-    if(show){
-      fetch(`${API}/api/config-status`).then(r=>r.json()).then(setConfigStatus).catch(()=>{});
-    }
-  },[show]);
-
-  const handleSave=async()=>{
-    if(!openaiKey.trim()&&!groqKey.trim()){t('Please enter at least one API key','warning');return}
-    setSaving(true);
-    try{
-      const body={};
-      if(openaiKey.trim())body.openai_api_key=openaiKey.trim();
-      if(groqKey.trim())body.groq_api_key=groqKey.trim();
-      const r=await fetch(`${API}/api/set-api-key`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Failed to save')}
-      t('API key saved successfully!','success');
-      setOpenaiKey('');setGroqKey('');
-      if(onSaved)onSaved();
-      onClose();
-    }catch(e){t(e.message,'error')}
-    finally{setSaving(false)}
-  };
-
-  if(!show)return null;
-
-  const provider=configStatus?.active_provider||'none';
-  const providerLabel={openai:'OpenAI ('+configStatus?.openai_model+')',groq:'Groq ('+configStatus?.groq_model+')',ollama:'Local Ollama',none:'Not configured'}[provider]||provider;
-  const providerColor={openai:'text-emerald-400',groq:'text-brand-400',ollama:'text-violet-400',none:'text-rose-400'}[provider]||'text-zinc-400';
-
-  return <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{background:'rgba(0,0,0,.6)',backdropFilter:'blur(6px)'}}>
-    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 anim-scale-in">
-      <div className="flex items-center justify-between px-6 pt-5 pb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-600/15 flex items-center justify-center"><Ic name="keyRound" size={20} className="text-brand-400"/></div>
-          <div><h3 className="text-lg font-display font-bold text-white">API Settings</h3><p className="text-[11px] text-zinc-500">Configure your LLM provider</p></div>
-        </div>
-        <button onClick={onClose} className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition"><Ic name="x" size={18}/></button>
-      </div>
-
-      <div className="px-6 pb-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700/60">
-          <div className={`w-2 h-2 rounded-full ${provider==='none'?'bg-rose-400':'bg-emerald-400'}`}/>
-          <span className="text-[12px] text-zinc-400">Active provider:</span>
-          <span className={`text-[12px] font-semibold ${providerColor}`}>{providerLabel}</span>
-        </div>
-      </div>
-
-      <div className="px-6 py-4 space-y-4">
-        <div>
-          <label className="block text-[12px] font-semibold text-zinc-400 mb-1.5">OpenAI API Key <span className="text-zinc-600 font-normal">(recommended)</span></label>
-          <input type="password" value={openaiKey} onChange={e=>setOpenaiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 outline-none transition"/>
-          <p className="text-[10px] text-zinc-600 mt-1">Uses GPT-4o for highest quality clinical reasoning</p>
-        </div>
-        <div>
-          <label className="block text-[12px] font-semibold text-zinc-400 mb-1.5">Groq API Key <span className="text-zinc-600 font-normal">(free fallback)</span></label>
-          <input type="password" value={groqKey} onChange={e=>setGroqKey(e.target.value)}
-            placeholder="gsk_..."
-            className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 outline-none transition"/>
-          <p className="text-[10px] text-zinc-600 mt-1">Uses Llama 3.3 70B — fast and free via Groq Cloud</p>
-        </div>
-      </div>
-
-      <div className="px-6 pb-5 flex items-center gap-3">
-        <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-400 hover:text-white hover:border-zinc-500 transition">Cancel</button>
-        <button onClick={handleSave} disabled={saving||(!openaiKey.trim()&&!groqKey.trim())}
-          className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2">
-          {saving?<><span className="spinner spinner-sm"/>Saving…</>:<><Ic name="check" size={15}/>Save Keys</>}
-        </button>
-      </div>
-
-      <div className="px-6 pb-5">
-        <p className="text-[10px] text-zinc-600 leading-relaxed">Keys are stored in memory only — they are not persisted and will be cleared when the server restarts. For permanent configuration, add keys to your <code className="text-zinc-500">.env</code> file.</p>
-      </div>
-    </div>
-  </div>;
-}
 
 /* ════════════════════════════════════════════════════════
    NAVBAR
@@ -420,6 +345,7 @@ const NAV=[
   {id:'classifiers',label:'Imaging AI',icon:'microscope'},
   {id:'architecture',label:'Architecture',icon:'workflow'},
   {id:'chat',label:'AI Assistant',icon:'messageCircle'},
+  {id:'observability',label:'Observability',icon:'activity'},
 ];
 
 const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activeProvider}){
@@ -449,7 +375,7 @@ const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activePro
       </nav>
 
       <div className="flex items-center gap-3">
-        <button onClick={onSettingsClick} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-zinc-700/60 hover:border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/80 transition group" title="API Settings">
+        <button onClick={onSettingsClick} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-zinc-700/60 hover:border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/80 transition group" title="Settings">
           <Ic name="keyRound" size={14} className="text-zinc-500 group-hover:text-brand-400 transition"/>
           <div className={`w-1.5 h-1.5 rounded-full ${provColor}`}/>
         </button>
@@ -777,7 +703,7 @@ function AnalysisView(){
     try{
       if(await tryWS(input.trim()))return;
       log('system','REST fallback');
-      const r=await fetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
+      const r=await cpFetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
       if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`)}
       const data=await r.json();allDone();setRes(data);log('system','✓ Complete');t('Analysis complete','success');
     }catch(e){log('error',e.message);t(e.message,'error');setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='error';return n})}
@@ -831,7 +757,7 @@ P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
   const feedback=useCallback(async fb=>{
     const s=res?.soap;if(!s){t('Run analysis first','warning');return}
     log('human',`Feedback: "${fb.slice(0,50)}…"`);
-    try{const r=await fetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_text:input,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Feedback failed')}const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
+    try{const r=await cpFetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_text:input,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Feedback failed')}const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
   },[res,log,t]);
 
   const soap=res?.soap||(res?.subjective?res:null);
@@ -931,7 +857,7 @@ function EmergencyView(){
     if(!input.trim()){t('Describe the emergency','warning');return}
     setBusy(true);setEm(null);const t0=performance.now();
     try{
-      const r=await fetch(`${API}/api/emergency`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
+      const r=await cpFetch(`${API}/api/emergency`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
       if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||`HTTP ${r.status}`);
       const d=await r.json();setLat(((performance.now()-t0)/1000).toFixed(1));setEm(d.emergency||d);t('Triage complete','success');
     }catch(e){t(e.message,'error')}finally{setBusy(false)}
@@ -1099,7 +1025,7 @@ function ArchView(){
       <div ref={flowRef} className={`mermaid min-h-[280px] ${tab!=='flow'?'hidden':''}`}/>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
-      {[{t:'AI & Reasoning',c:'text-violet-400',items:['GPT-4o + GPT-4o-mini','Multi-agent debate (3 rounds)','Critic consensus engine','Human-in-the-loop feedback']},{t:'Safety & Data',c:'text-rose-400',items:['Presidio PHI anonymizer','PubMed / Entrez','RxNorm interactions','FDA + DrugBank']},{t:'Infrastructure',c:'text-brand-400',items:['FastAPI + WebSocket','React 18 (CDN)','LanceDB vectors','Pydantic v2 validation']}].map((s,i)=>
+      {[{t:'AI & Reasoning',c:'text-violet-400',items:['Configurable engines (local + cloud)','Multi-agent debate (adjustable rounds)','Critic consensus engine','Human-in-the-loop feedback']},{t:'Safety & Data',c:'text-rose-400',items:['Presidio PHI anonymizer','PubMed / Entrez','RxNorm interactions','FDA + DrugBank']},{t:'Infrastructure',c:'text-brand-400',items:['FastAPI + WebSocket','React 18 (CDN)','LanceDB vectors','Pydantic v2 validation']}].map((s,i)=>
         <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up" style={{animationDelay:`${i*.08}s`}}>
           <h3 className={`text-sm font-display font-bold ${s.c} mb-3`}>{s.t}</h3>
           <ul className="space-y-1.5">{s.items.map((it,j)=><li key={j} className="text-xs text-zinc-500 flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0"/>{it}</li>)}</ul>
@@ -1128,7 +1054,7 @@ function ChatView(){
     setMsgs(newMsgs);setBusy(true);
     try{
       const history=newMsgs.filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
-      const r=await fetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
+      const r=await cpFetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
       if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||`HTTP ${r.status}`)}
       const d=await r.json();
       setMsgs(p=>[...p,{role:'assistant',content:d.reply}]);
@@ -1137,7 +1063,7 @@ function ChatView(){
     finally{setBusy(false)}
   },[input,busy,msgs,t]);
 
-  const providerLabel=meta?.provider==='openai'?`OpenAI (${meta.model})`:meta?.provider==='groq'?`Groq (${meta.model})`:meta?.model||'';
+  const providerLabel=meta?.model||'';
 
   return <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 relative z-10 flex flex-col" style={{height:'calc(100vh - 80px)'}}>
     <div className="mb-4 anim-fade-up">
@@ -1145,7 +1071,7 @@ function ChatView(){
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
           <Ic name="sparkles" size={24} className="text-white"/>
         </div>
-        <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Conversational clinical Q&A — OpenAI with Groq fallback{meta?<span className="ml-2 text-zinc-600">· {providerLabel} · {meta.latency}ms · {meta.tokens} tokens</span>:null}</p></div>
+        <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Conversational clinical Q&A{meta?<span className="ml-2 text-zinc-600">· {providerLabel} · {meta.latency}ms · {meta.tokens} tokens</span>:null}</p></div>
       </div>
     </div>
 
@@ -1175,21 +1101,327 @@ function ChatView(){
 }
 
 /* ════════════════════════════════════════════════════════
+   NEEDS-KEY PROMPT  (fired when the backend returns 428)
+   ════════════════════════════════════════════════════════ */
+function NeedsKeyModal({state,onClose,onSaved}){
+  const t=useToast();
+  const[val,setVal]=useState('');
+  const[saving,setSaving]=useState(false);
+  useEffect(()=>{setVal('')},[state]);
+  if(!state||!state.show)return null;
+  const save=async()=>{
+    if(!val.trim())return;
+    setSaving(true);
+    try{
+      const r=await fetch(`${API}/api/config/secret`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key_ref:state.keyRef,value:val.trim()})});
+      if(!r.ok)throw new Error('Failed to save key');
+      t('Key saved — please retry your request','success');
+      setVal('');onSaved&&onSaved();onClose();
+    }catch(e){t(e.message,'error')}finally{setSaving(false)}
+  };
+  return <div className="fixed inset-0 z-[300] flex items-center justify-center" style={{background:'rgba(0,0,0,.6)',backdropFilter:'blur(6px)'}}>
+    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 anim-scale-in">
+      <div className="flex items-center justify-between px-6 pt-5 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center"><Ic name="keyRound" size={20} className="text-amber-400"/></div>
+          <div><h3 className="text-lg font-display font-bold text-white">API key needed</h3><p className="text-[11px] text-zinc-500">Engine <span className="text-zinc-400 font-semibold">{state.profile}</span> requires <code className="text-zinc-400">{state.keyRef}</code></p></div>
+        </div>
+        <button onClick={onClose} className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition"><Ic name="x" size={18}/></button>
+      </div>
+      <div className="px-6 py-4">
+        <input type="password" value={val} onChange={e=>setVal(e.target.value)} autoFocus placeholder="Paste key…"
+          onKeyDown={e=>{if(e.key==='Enter')save()}}
+          className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-brand-500 outline-none transition"/>
+        <p className="text-[10px] text-zinc-600 mt-2">Stored in memory only (cleared on restart). To make it permanent, hardcode it in <code className="text-zinc-500">config/secrets.local.py</code> or your <code className="text-zinc-500">.env</code>.</p>
+      </div>
+      <div className="px-6 pb-5 flex gap-3">
+        <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-400 hover:text-white transition">Cancel</button>
+        <button onClick={save} disabled={saving||!val.trim()} className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2">{saving?<><span className="spinner spinner-sm"/>Saving…</>:<><Ic name="check" size={15}/>Save key</>}</button>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   SETTINGS VIEW  — engines, routing, debate, observability
+   ════════════════════════════════════════════════════════ */
+const PROVIDERS=['ollama','openai','groq','anthropic','azure','openai_compatible'];
+const ROLE_LABELS={default:'Default (all others)',chat:'AI Assistant (chat)',clinical:'Clinical agent',literature:'Literature agent',safety:'Safety agent',critic:'Critic agent',synthesizer:'Synthesizer',emergency:'Emergency mode',med_panel:'Med-error panel'};
+
+function KeyStatusBadge({status}){
+  const m={hardcoded:['Hardcoded','text-emerald-400 bg-emerald-500/10 border-emerald-500/20'],runtime:['Set (session)','text-brand-400 bg-brand-500/10 border-brand-500/20'],missing:['Not set','text-amber-400 bg-amber-500/10 border-amber-500/20'],none:['No key needed','text-zinc-500 bg-zinc-500/10 border-zinc-600/30']}[status]||['—','text-zinc-500'];
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full border ${m[1]}`}>{m[0]}</span>;
+}
+
+function EngineCard({prof,profiles,onChanged}){
+  const t=useToast();
+  const[p,setP]=useState(prof);
+  const[keyVal,setKeyVal]=useState('');
+  const[testing,setTesting]=useState(false);
+  const[test,setTest]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const upd=(k,v)=>setP(x=>({...x,[k]:v}));
+  const updParam=(k,v)=>setP(x=>({...x,params:{...x.params,[k]:v}}));
+
+  const save=async()=>{
+    setSaving(true);
+    try{
+      const body={...p};delete body.key_status;
+      const r=await fetch(`${API}/api/config/profiles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||'Save failed')}
+      t('Engine saved','success');onChanged&&onChanged();
+    }catch(e){t(e.message,'error')}finally{setSaving(false)}
+  };
+  const saveKey=async()=>{
+    if(!keyVal.trim()||!p.api_key_ref)return;
+    try{
+      const r=await fetch(`${API}/api/config/secret`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key_ref:p.api_key_ref,value:keyVal.trim()})});
+      if(!r.ok)throw new Error('Failed');
+      t('Key saved','success');setKeyVal('');onChanged&&onChanged();
+    }catch(e){t(e.message,'error')}
+  };
+  const doTest=async()=>{
+    setTesting(true);setTest(null);
+    try{
+      const r=await fetch(`${API}/api/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:p.id})});
+      const d=await r.json();setTest(d);
+      t(d.ok?`Connected (${d.latency_ms}ms)`:`Test failed`,d.ok?'success':'error');
+    }catch(e){setTest({ok:false,error:e.message});t(e.message,'error')}finally{setTesting(false)}
+  };
+  const del=async()=>{
+    if(!confirm(`Delete engine "${p.id}"?`))return;
+    try{await fetch(`${API}/api/config/profiles/${encodeURIComponent(p.id)}`,{method:'DELETE'});t('Engine deleted','success');onChanged&&onChanged()}catch(e){t(e.message,'error')}
+  };
+  const discover=async()=>{
+    try{
+      const r=await fetch(`${API}/api/config/discover?profile_id=${encodeURIComponent(p.id)}`);const d=await r.json();
+      if(d.ok&&d.models.length){const pick=prompt(`Models found at ${p.id}:\n\n${d.models.join('\n')}\n\nType one to use:`,d.models[0]);if(pick)upd('model',pick.trim())}
+      else t(d.error||'No models found','warning');
+    }catch(e){t(e.message,'error')}
+  };
+
+  const inp="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-[13px] text-white placeholder:text-zinc-600 focus:border-brand-500 outline-none transition";
+  const lbl="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1";
+  return <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-brand-600/15 flex items-center justify-center"><Ic name="cpu" size={16} className="text-brand-400"/></div>
+        <div><div className="text-sm font-semibold text-white">{p.label||p.id}</div><div className="text-[10px] text-zinc-600 font-mono">{p.id}</div></div>
+      </div>
+      <KeyStatusBadge status={p.key_status||'none'}/>
+    </div>
+    <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+      <div><label className={lbl}>Label</label><input className={inp} value={p.label||''} onChange={e=>upd('label',e.target.value)}/></div>
+      <div><label className={lbl}>Provider</label><select className={inp} value={p.provider} onChange={e=>upd('provider',e.target.value)}>{PROVIDERS.map(x=><option key={x} value={x}>{x}</option>)}</select></div>
+      <div><label className={lbl}>Model <button onClick={discover} className="text-brand-400 hover:text-brand-300 lowercase ml-1">discover</button></label><input className={inp} value={p.model} onChange={e=>upd('model',e.target.value)} placeholder="e.g. medgemma"/></div>
+      <div><label className={lbl}>Base URL</label><input className={inp} value={p.base_url||''} onChange={e=>upd('base_url',e.target.value||null)} placeholder="provider default"/></div>
+      <div><label className={lbl}>Key ref</label><input className={inp} value={p.api_key_ref||''} onChange={e=>upd('api_key_ref',e.target.value||null)} placeholder="none (e.g. local)"/></div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <div><label className={lbl}>Temp</label><input className={inp} type="number" step="0.1" value={p.params.temperature} onChange={e=>updParam('temperature',parseFloat(e.target.value))}/></div>
+        <div><label className={lbl}>Max tok</label><input className={inp} type="number" value={p.params.max_tokens} onChange={e=>updParam('max_tokens',parseInt(e.target.value)||0)}/></div>
+        <div><label className={lbl}>Serial</label><button onClick={()=>upd('serialize',!p.serialize)} className={`${inp} text-left ${p.serialize?'text-emerald-400':'text-zinc-500'}`}>{p.serialize?'yes':'no'}</button></div>
+      </div>
+    </div>
+    {p.api_key_ref&&p.key_status!=='hardcoded'&&<div className="flex gap-2 mb-2.5">
+      <input type="password" className={inp} value={keyVal} onChange={e=>setKeyVal(e.target.value)} placeholder={`Enter ${p.api_key_ref}…`}/>
+      <button onClick={saveKey} disabled={!keyVal.trim()} className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[12px] text-zinc-300 hover:text-white disabled:opacity-40 whitespace-nowrap">Set key</button>
+    </div>}
+    <div className="flex items-center gap-2">
+      <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-[12px] font-semibold transition disabled:opacity-40 flex items-center gap-1.5">{saving?<span className="spinner spinner-sm"/>:<Ic name="check" size={13}/>}Save</button>
+      <button onClick={doTest} disabled={testing} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-[12px] text-zinc-300 hover:text-white transition flex items-center gap-1.5">{testing?<span className="spinner spinner-sm"/>:<Ic name="activity" size={13}/>}Test</button>
+      <button onClick={del} className="px-3 py-1.5 rounded-lg border border-rose-500/30 text-[12px] text-rose-400 hover:bg-rose-500/10 transition ml-auto flex items-center gap-1.5"><Ic name="trash" size={13}/></button>
+      {test&&<span className={`text-[11px] ${test.ok?'text-emerald-400':'text-rose-400'}`}>{test.ok?`✓ ${test.provider} · ${test.latency_ms}ms`:`✕ ${(test.error||'').slice(0,40)}`}</span>}
+    </div>
+  </div>;
+}
+
+function RoutingRow({role,route,profileIds,onSave}){
+  const[primary,setPrimary]=useState(route.primary);
+  const[fallbacks,setFallbacks]=useState(route.fallbacks||[]);
+  useEffect(()=>{setPrimary(route.primary);setFallbacks(route.fallbacks||[])},[route]);
+  const save=(np,nf)=>{onSave(role,{primary:np,fallbacks:nf})};
+  const toggleFb=(id)=>{const nf=fallbacks.includes(id)?fallbacks.filter(x=>x!==id):[...fallbacks,id];setFallbacks(nf);save(primary,nf)};
+  const inp="bg-zinc-800/50 border border-zinc-700 rounded-lg px-2 py-1 text-[12px] text-white outline-none focus:border-brand-500";
+  return <div className="grid grid-cols-[160px_1fr] gap-3 items-center py-2 border-b border-zinc-800/60">
+    <div className="text-[12px] text-zinc-400">{ROLE_LABELS[role]||role}</div>
+    <div className="flex items-center gap-2 flex-wrap">
+      <select className={inp} value={primary} onChange={e=>{setPrimary(e.target.value);save(e.target.value,fallbacks)}}>{profileIds.map(x=><option key={x} value={x}>{x}</option>)}</select>
+      <span className="text-[10px] text-zinc-600">fallback:</span>
+      {profileIds.filter(x=>x!==primary).map(x=><button key={x} onClick={()=>toggleFb(x)} className={`text-[10px] px-2 py-0.5 rounded-full border transition ${fallbacks.includes(x)?'text-brand-300 bg-brand-500/15 border-brand-500/30':'text-zinc-500 border-zinc-700 hover:border-zinc-600'}`}>{x}</button>)}
+    </div>
+  </div>;
+}
+
+function SettingsView(){
+  const t=useToast();
+  const[cfg,setCfg]=useState(null);
+  const[tab,setTab]=useState('engines');
+  const load=useCallback(()=>{fetch(`${API}/api/config/models`).then(r=>r.json()).then(setCfg).catch(()=>t('Failed to load config','error'))},[t]);
+  useEffect(()=>{load()},[load]);
+  if(!cfg)return <div className="max-w-5xl mx-auto px-6 py-16 text-center text-zinc-500"><span className="spinner"/> Loading settings…</div>;
+
+  const profileIds=Object.keys(cfg.profiles);
+  const addEngine=async()=>{
+    const id=prompt('New engine id (e.g. my-gateway):');if(!id)return;
+    const body={id:id.trim(),label:id.trim(),provider:'openai_compatible',model:'',base_url:'',api_key_ref:id.trim().toUpperCase().replace(/[^A-Z0-9]/g,'_')+'_KEY',serialize:false,params:{temperature:0.2,max_tokens:2048,json_mode:true}};
+    try{await fetch(`${API}/api/config/profiles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});t('Engine added','success');load()}catch(e){t(e.message,'error')}
+  };
+  const saveRole=async(role,route)=>{try{const r=await fetch(`${API}/api/config/roles/${role}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(route)});const d=await r.json();setCfg(d)}catch(e){t(e.message,'error')}};
+  const setAll=async(pid)=>{for(const role of cfg.roles_available){await fetch(`${API}/api/config/roles/${role}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({primary:pid,fallbacks:[]})})}t(`All agents → ${pid}`,'success');load()};
+  const saveDebate=async(patch)=>{const d={...cfg.debate,...patch};try{const r=await fetch(`${API}/api/config/debate`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});setCfg(await r.json())}catch(e){t(e.message,'error')}};
+  const saveObs=async(patch)=>{const o={...cfg.observability,...patch};try{const r=await fetch(`${API}/api/config/observability`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});setCfg(await r.json())}catch(e){t(e.message,'error')}};
+
+  const TABS=[['engines','Engines','cpu'],['routing','Routing','share'],['debate','Debate','scale'],['advanced','Advanced','settings']];
+  return <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 anim-fade-up">
+    <div className="flex items-center gap-3 mb-5">
+      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center"><Ic name="settings" size={22} className="text-white"/></div>
+      <div><h2 className="text-xl font-display font-bold text-white">Settings</h2><p className="text-xs text-zinc-500">Configure engines, per-agent routing, and debate — any model, any endpoint, any key.</p></div>
+    </div>
+    <div className="flex gap-1 mb-5 border-b border-zinc-800">
+      {TABS.map(([id,label,icon])=><button key={id} onClick={()=>setTab(id)} className={`flex items-center gap-2 px-3 py-2 text-[13px] font-medium border-b-2 -mb-px transition ${tab===id?'border-brand-500 text-white':'border-transparent text-zinc-500 hover:text-zinc-300'}`}><Ic name={icon} size={14}/>{label}</button>)}
+    </div>
+
+    {tab==='engines'&&<div className="space-y-3">
+      <div className="flex justify-between items-center"><p className="text-[12px] text-zinc-500">Each engine is one model on one provider. MedGemma via local Ollama needs no key.</p><button onClick={addEngine} className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[12px] text-zinc-300 hover:text-white transition flex items-center gap-1.5"><Ic name="sparkles" size={13}/>Add engine</button></div>
+      <div className="grid md:grid-cols-2 gap-3">{profileIds.map(id=><EngineCard key={id} prof={cfg.profiles[id]} profiles={cfg.profiles} onChanged={load}/>)}</div>
+    </div>}
+
+    {tab==='routing'&&<div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="flex justify-between items-center mb-3">
+        <p className="text-[12px] text-zinc-500">Choose which engine each agent uses. Roles with no explicit setting use “Default”.</p>
+        <div className="flex gap-1.5">{profileIds.map(id=><button key={id} onClick={()=>setAll(id)} className="text-[10px] px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white transition">All → {id}</button>)}</div>
+      </div>
+      {cfg.roles_available.map(role=><RoutingRow key={role} role={role} route={cfg.roles[role]||{primary:profileIds[0],fallbacks:[]}} profileIds={profileIds} onSave={saveRole}/>)}
+    </div>}
+
+    {tab==='debate'&&<div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 max-w-lg space-y-5">
+      <div>
+        <div className="flex justify-between mb-1.5"><label className="text-[13px] text-zinc-300 font-medium">Max debate rounds</label><span className="text-brand-400 font-bold text-lg">{cfg.debate.max_rounds}</span></div>
+        <input type="range" min="1" max="6" value={cfg.debate.max_rounds} onChange={e=>saveDebate({max_rounds:parseInt(e.target.value)})} className="w-full accent-brand-500"/>
+        <p className="text-[10px] text-zinc-600 mt-1">More rounds = deeper multi-agent deliberation, slower & more tokens.</p>
+      </div>
+      <div>
+        <div className="flex justify-between mb-1.5"><label className="text-[13px] text-zinc-300 font-medium">Min rounds</label><span className="text-brand-400 font-bold text-lg">{cfg.debate.min_rounds}</span></div>
+        <input type="range" min="1" max={cfg.debate.max_rounds} value={cfg.debate.min_rounds} onChange={e=>saveDebate({min_rounds:parseInt(e.target.value)})} className="w-full accent-brand-500"/>
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.debate.consensus_required} onChange={e=>saveDebate({consensus_required:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Flag for human review if no consensus is reached</span></label>
+    </div>}
+
+    {tab==='advanced'&&<div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 max-w-lg space-y-4">
+      <p className="text-[12px] text-zinc-500 font-semibold uppercase tracking-wide">Observability export</p>
+      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.observability.sqlite} onChange={e=>saveObs({sqlite:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Persist traces to local SQLite (history survives restarts)</span></label>
+      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.observability.langfuse} onChange={e=>saveObs({langfuse:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Mirror traces to Langfuse (requires Langfuse env keys)</span></label>
+      <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.observability.langsmith} onChange={e=>saveObs({langsmith:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Enable LangSmith tracing (requires LANGSMITH_API_KEY)</span></label>
+      <div className="pt-2 border-t border-zinc-800"><p className="text-[10px] text-zinc-600 leading-relaxed">Tip: to hardcode keys so you’re never prompted, copy <code className="text-zinc-500">config/secrets.local.example.py</code> → <code className="text-zinc-500">config/secrets.local.py</code> and fill in <code className="text-zinc-500">HARDCODED_KEYS</code>.</p></div>
+    </div>}
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
+   OBSERVABILITY VIEW  — calls, agents, providers, traces
+   ════════════════════════════════════════════════════════ */
+function StatTile({label,value,sub,color}){
+  return <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+    <div className="text-[10px] text-zinc-500 uppercase tracking-wide font-semibold">{label}</div>
+    <div className={`text-2xl font-display font-bold ${color||'text-white'} mt-0.5`}>{value}</div>
+    {sub&&<div className="text-[10px] text-zinc-600 mt-0.5">{sub}</div>}
+  </div>;
+}
+function BreakdownTable({title,data}){
+  const rows=Object.entries(data||{});
+  return <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+    <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{title}</div>
+    {rows.length===0?<div className="text-[12px] text-zinc-600">No data yet.</div>:
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-[1fr_50px_50px_60px] gap-2 text-[10px] text-zinc-600 uppercase font-semibold"><span>Name</span><span className="text-right">Calls</span><span className="text-right">Err</span><span className="text-right">Avg ms</span></div>
+      {rows.map(([k,v])=><div key={k} className="grid grid-cols-[1fr_50px_50px_60px] gap-2 text-[12px] items-center">
+        <span className="text-zinc-300 truncate font-mono">{k}</span>
+        <span className="text-right text-white">{v.calls}</span>
+        <span className={`text-right ${v.errors?'text-rose-400':'text-zinc-600'}`}>{v.errors}</span>
+        <span className="text-right text-zinc-400">{v.avg_latency_ms}</span>
+      </div>)}
+    </div>}
+  </div>;
+}
+function ObservabilityView(){
+  const t=useToast();
+  const[sum,setSum]=useState(null);
+  const[traces,setTraces]=useState([]);
+  const[auto,setAuto]=useState(false);
+  const load=useCallback(()=>{
+    fetch(`${API}/api/observability/summary`).then(r=>r.json()).then(setSum).catch(()=>{});
+    fetch(`${API}/api/observability/traces?limit=40`).then(r=>r.json()).then(d=>setTraces(d.traces||[])).catch(()=>{});
+  },[]);
+  useEffect(()=>{load()},[load]);
+  useEffect(()=>{if(!auto)return;const iv=setInterval(load,4000);return()=>clearInterval(iv)},[auto,load]);
+  const clear=async()=>{if(!confirm('Clear all observability history?'))return;await fetch(`${API}/api/observability/traces`,{method:'DELETE'});t('Cleared','success');load()};
+  if(!sum)return <div className="max-w-6xl mx-auto px-6 py-16 text-center text-zinc-500"><span className="spinner"/> Loading…</div>;
+
+  return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 anim-fade-up">
+    <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center"><Ic name="activity" size={22} className="text-white"/></div>
+        <div><h2 className="text-xl font-display font-bold text-white">Observability</h2><p className="text-xs text-zinc-500">Every model call — agents, engines, tokens, latency, and errors.</p></div>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 cursor-pointer"><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)} className="accent-brand-500"/>Auto-refresh</label>
+        <button onClick={load} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-[12px] text-zinc-300 hover:text-white transition flex items-center gap-1.5"><Ic name="refresh" size={13}/>Refresh</button>
+        <button onClick={clear} className="px-3 py-1.5 rounded-lg border border-rose-500/30 text-[12px] text-rose-400 hover:bg-rose-500/10 transition flex items-center gap-1.5"><Ic name="trash" size={13}/>Clear</button>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
+      <StatTile label="Total calls" value={sum.total_calls}/>
+      <StatTile label="Success" value={sum.success} color="text-emerald-400"/>
+      <StatTile label="Errors" value={sum.errors} color={sum.errors?'text-rose-400':'text-zinc-400'}/>
+      <StatTile label="Error rate" value={`${Math.round(sum.error_rate*100)}%`} color={sum.error_rate>0.2?'text-rose-400':'text-zinc-200'}/>
+      <StatTile label="Tokens" value={sum.total_tokens.toLocaleString()}/>
+      <StatTile label="Avg latency" value={`${sum.avg_latency_ms}ms`}/>
+    </div>
+
+    <div className="grid md:grid-cols-3 gap-3 mb-5">
+      <BreakdownTable title="By agent" data={sum.by_agent}/>
+      <BreakdownTable title="By engine (provider)" data={sum.by_provider}/>
+      <BreakdownTable title="By model" data={sum.by_model}/>
+    </div>
+
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Recent calls ({traces.length})</div>
+      {traces.length===0?<div className="text-[12px] text-zinc-600">No calls recorded yet. Run an analysis or chat to populate this.</div>:
+      <div className="overflow-x-auto"><div className="min-w-[720px] space-y-1">
+        <div className="grid grid-cols-[70px_90px_1fr_60px_70px_60px] gap-2 text-[10px] text-zinc-600 uppercase font-semibold pb-1 border-b border-zinc-800"><span>Agent</span><span>Engine</span><span>Model</span><span className="text-right">Round</span><span className="text-right">ms</span><span className="text-right">Status</span></div>
+        {[...traces].reverse().map(tr=><div key={tr.id} className="grid grid-cols-[70px_90px_1fr_60px_70px_60px] gap-2 text-[11px] items-center py-0.5">
+          <span className="text-zinc-400 truncate">{tr.role}</span>
+          <span className="text-zinc-500 truncate">{tr.provider}</span>
+          <span className="text-zinc-300 truncate font-mono">{tr.model}</span>
+          <span className="text-right text-zinc-500">{tr.debate_round??'—'}</span>
+          <span className="text-right text-zinc-400">{tr.latency_ms||'—'}</span>
+          <span className="text-right">{tr.success?<span className="text-emerald-400">✓</span>:<span className="text-rose-400" title={tr.error||''}>✕ {(tr.error||'').slice(0,14)}</span>}</span>
+        </div>)}
+      </div></div>}
+    </div>
+  </div>;
+}
+
+/* ════════════════════════════════════════════════════════
    APP ROOT
    ════════════════════════════════════════════════════════ */
 function App(){
   const[view,setView]=useState('analysis');
   const[online,setOnline]=useState(false);
-  const[splashDone,setSplashDone]=useState(false);
-  const[showApiModal,setShowApiModal]=useState(false);
   const[activeProvider,setActiveProvider]=useState('none');
+  const[needKey,setNeedKey]=useState(null); // {show,keyRef,profile}
 
   const fetchConfigStatus=useCallback(()=>{
     fetch(`${API}/api/config-status`).then(r=>r.json()).then(d=>{
       setActiveProvider(d.active_provider||'none');
-      // Auto-show modal if no provider is configured
-      if(d.active_provider==='none')setShowApiModal(true);
     }).catch(()=>{});
+  },[]);
+
+  // Wire the global needs-key prompt so any cpFetch 428 opens the modal.
+  useEffect(()=>{
+    _cpPromptKey=(keyRef,profile)=>setNeedKey({show:true,keyRef,profile});
+    return()=>{_cpPromptKey=null};
   },[]);
 
   useEffect(()=>{
@@ -1199,18 +1431,12 @@ function App(){
 
   useEffect(()=>{fetchConfigStatus()},[fetchConfigStatus]);
 
-  useEffect(()=>{const t=setTimeout(()=>{document.getElementById('splash')?.classList.add('hide');setSplashDone(true)},2200);return()=>clearTimeout(t)},[]);
+  useEffect(()=>{const t=setTimeout(()=>{document.getElementById('splash')?.classList.add('hide')},2200);return()=>clearTimeout(t)},[]);
 
   return <ToastProvider>
     <div className="min-h-screen flex flex-col relative">
-      <Navbar view={view} setView={setView} online={online} onSettingsClick={()=>setShowApiModal(true)} activeProvider={activeProvider}/>
-      {/* API key banner when no provider configured */}
-      {activeProvider==='none'&&online&&<div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-center gap-3 anim-fade-up">
-        <Ic name="alertTri" size={15} className="text-amber-400 shrink-0"/>
-        <span className="text-[12px] text-amber-300">No LLM API key configured.</span>
-        <button onClick={()=>setShowApiModal(true)} className="text-[12px] font-semibold text-amber-400 hover:text-amber-300 underline underline-offset-2 transition">Set up now</button>
-      </div>}
-      <ApiKeyModal show={showApiModal} onClose={()=>setShowApiModal(false)} onSaved={fetchConfigStatus}/>
+      <Navbar view={view} setView={setView} online={online} onSettingsClick={()=>setView('settings')} activeProvider={activeProvider}/>
+      <NeedsKeyModal state={needKey} onClose={()=>setNeedKey(null)} onSaved={fetchConfigStatus}/>
       <main className="flex-1 relative z-10">
         {view==='analysis'&&<AnalysisView/>}
         {view==='emergency'&&<EmergencyView/>}
@@ -1218,6 +1444,8 @@ function App(){
         {view==='classifiers'&&<ClassifiersView/>}
         {view==='architecture'&&<ArchView/>}
         {view==='chat'&&<ChatView/>}
+        {view==='observability'&&<ObservabilityView/>}
+        {view==='settings'&&<SettingsView/>}
       </main>
       <footer className="relative z-10 text-center py-4 text-[11px] text-zinc-700 border-t border-zinc-800/60 safe-b">
         ClinicalPilot v2 · Multi-Agent Clinical Decision Support · For research & educational use only

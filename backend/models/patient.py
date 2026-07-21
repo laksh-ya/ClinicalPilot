@@ -141,3 +141,4 @@ class AnalysisRequest(BaseModel):
     text: str = ""
     fhir_bundle: Optional[dict] = None
     patient_context: Optional[PatientContext] = None
+    max_debate_rounds: Optional[int] = None  # per-request override of the configured default

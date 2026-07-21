@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from backend.config import get_settings
 from backend.models.patient import PatientContext
 from backend.models.safety import (
     DosingAlert,
@@ -94,10 +93,10 @@ async def run_med_error_panel(patient: PatientContext) -> MedErrorPanel:
 {allergies}
 """
 
-    settings = get_settings()
     result = await llm_call(
         system_prompt=MED_ERROR_SYSTEM_PROMPT,
         user_message=user_message,
+        role="med_panel",
         json_mode=True,
     )
 

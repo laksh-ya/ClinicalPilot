@@ -8,6 +8,7 @@ pydantic-settings==2.5.0
 certifi
 
 # LLM & Agents
+litellm>=1.50.0          # unified client: Ollama, OpenAI, Groq, Azure, Anthropic, any OpenAI-compatible endpoint
 openai==1.50.0
 groq>=0.9.0
 langchain==0.3.0

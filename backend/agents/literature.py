@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from backend.config import get_settings
 from backend.models.patient import PatientContext
 from backend.models.agents import LiteratureAgentOutput, LiteratureHit, ClinicalAgentOutput
 from backend.models.soap import ConfidenceLevel
@@ -30,7 +29,6 @@ async def run_literature_agent(
         clinical_output: Optional output from Clinical Agent (to search for evidence)
         critique: Optional critique from previous debate round
     """
-    settings = get_settings()
     system_prompt = load_prompt("literature_system.txt")
 
     user_message = f"""## Patient Context
@@ -66,7 +64,7 @@ async def run_literature_agent(
     result = await llm_call(
         system_prompt=system_prompt,
         user_message=user_message,
-        model=settings.openai_fast_model,  # Use fast model for literature
+        role="literature",
         json_mode=True,
     )
 

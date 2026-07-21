@@ -45,8 +45,13 @@ async def full_pipeline(request: AnalysisRequest) -> tuple[SOAPNote, DebateState
 
     # ── Step 2: Run debate ────────────────────────────────
     from backend.debate.debate_engine import run_debate
+    from backend.llm.registry import get_debate
 
-    debate_state = await run_debate(patient, max_rounds=settings.max_debate_rounds)
+    debate_cfg = get_debate()
+    max_rounds = request.max_debate_rounds or debate_cfg.max_rounds
+    max_rounds = max(debate_cfg.min_rounds, min(max_rounds, 10))  # clamp to a sane band
+
+    debate_state = await run_debate(patient, max_rounds=max_rounds)
 
     # ── Step 3: Synthesize final output ──────────────────
     from backend.validation.synthesizer import synthesize_soap

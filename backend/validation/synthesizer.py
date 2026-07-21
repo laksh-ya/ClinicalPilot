@@ -85,6 +85,7 @@ Flagged for human review: {debate.flagged_for_human}
     result = await llm_call(
         system_prompt=system_prompt,
         user_message=user_message,
+        role="synthesizer",
         json_mode=True,
     )
 
