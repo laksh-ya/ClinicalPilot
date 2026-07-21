@@ -89,8 +89,13 @@ def build_call_args(
     if key:
         args["api_key"] = key
 
-    if use_json:
-        # Every provider LiteLLM supports accepts this; for Ollama it maps to format=json.
+    # JSON grammar constraint (response_format) is SEPARATE from wanting JSON back.
+    # We only constrain the model when the caller wants JSON *and* the profile allows a
+    # grammar (prm.json_mode). Reasoning models (e.g. MedGemma 1.5, which emits a
+    # <unused94>…thought…<unused95> block) stall or slow badly under grammar — set their
+    # profile json_mode=false so the model generates freely; we still parse JSON out of the
+    # reply via parse_content(). Hosted APIs keep grammar on for reliability.
+    if use_json and prm.json_mode:
         args["response_format"] = {"type": "json_object"}
 
     return args
@@ -99,14 +104,38 @@ def build_call_args(
 # ── Robust JSON extraction ──────────────────────────────────────────────────
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
+# Special/control tokens that leak into plain-text output from local chat templates.
+_SPECIAL_TOKEN_RE = re.compile(
+    r"</?(?:start_of_turn|end_of_turn|eos|bos|pad|start_of_image|end_of_image|unused\d+)>"
+)
+
+
+def strip_model_artifacts(text: str) -> str:
+    """Remove reasoning blocks and stray special tokens from a model reply.
+
+    Reasoning models (e.g. MedGemma 1.5) emit a private chain-of-thought wrapped in
+    <unused94>…thought…<unused95> *before* the real answer. Keep only what follows the
+    last <unused95>, then drop any lingering control tokens.
+    """
+    if not text:
+        return text
+    if "<unused95>" in text:
+        text = text.rsplit("<unused95>", 1)[-1]
+    # also handle explicit <thought>…</thought> style if a template uses it
+    text = re.sub(r"<thought>.*?</thought>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = _SPECIAL_TOKEN_RE.sub("", text)
+    # a leading bare "model" / "thought" role echo
+    text = re.sub(r"^\s*(?:model|thought)\s*\n", "", text)
+    return text.strip()
 
 
 def parse_content(content_str: str, json_mode: bool) -> Any:
     """Best-effort parse of a model reply into a dict; falls back to the raw string.
 
-    Handles the ways non-OpenAI providers deviate: markdown code fences, prose
-    wrapped around the JSON, trailing commas, and single-object-only replies.
+    Handles the ways non-OpenAI providers deviate: reasoning-model thought blocks,
+    markdown code fences, prose wrapped around the JSON, trailing commas, and arrays.
     """
+    content_str = strip_model_artifacts(content_str or "")
     if not json_mode:
         return content_str
     if not content_str or not content_str.strip():

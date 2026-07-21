@@ -1264,7 +1264,7 @@ function SettingsView(){
   const profileIds=Object.keys(cfg.profiles);
   const addEngine=async()=>{
     const id=prompt('New engine id (e.g. my-gateway):');if(!id)return;
-    const body={id:id.trim(),label:id.trim(),provider:'openai_compatible',model:'',base_url:'',api_key_ref:id.trim().toUpperCase().replace(/[^A-Z0-9]/g,'_')+'_KEY',serialize:false,params:{temperature:0.2,max_tokens:2048,json_mode:true}};
+    const body={id:id.trim(),label:id.trim(),provider:'openai_compatible',model:'',base_url:'',api_key_ref:id.trim().toUpperCase().replace(/[^A-Z0-9]/g,'_')+'_KEY',serialize:false,params:{temperature:0.2,max_tokens:2048,json_mode:false}};
     try{await fetch(`${API}/api/config/profiles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});t('Engine added','success');load()}catch(e){t(e.message,'error')}
   };
   const saveRole=async(role,route)=>{try{const r=await fetch(`${API}/api/config/roles/${role}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(route)});const d=await r.json();setCfg(d)}catch(e){t(e.message,'error')}};

@@ -79,7 +79,9 @@ def _default_config() -> ModelsConfig:
         "medgemma-local": Profile(
             id="medgemma-local", label="MedGemma (Local)", provider="ollama",
             model="medgemma", base_url="http://localhost:11434", api_key_ref=None,
-            params=ProfileParams(temperature=0.2, max_tokens=4096, json_mode=True),
+            # json_mode=False: MedGemma 1.5 is a reasoning model; JSON grammar stalls it.
+            # We still parse JSON out of its reply — no grammar constraint needed.
+            params=ProfileParams(temperature=0.2, max_tokens=4096, json_mode=False),
         ),
         "cloud-fast": Profile(
             id="cloud-fast", label="Cloud Fast", provider="groq",

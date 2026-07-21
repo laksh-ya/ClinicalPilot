@@ -282,9 +282,27 @@ vLLM, LM Studio, a gateway) — any model, any base URL, any key.
 
 ### Configure in the UI
 Open **Settings** (gear icon or the Settings view):
-- **Engines** — add/edit engines, set model/base URL/key, **Test** the connection, **discover** installed models.
+- **Engines** — add/edit engines, set model/base URL/key, **Test** the connection, **discover** installed models. Each engine has a per-engine **JSON**, **Max tok**, **Temp**, and **Serial** toggle.
 - **Routing** — pick which engine each agent uses (e.g. run the critic on the cloud, everything else on MedGemma).
 - **Debate** — increase/decrease max debate rounds.
+
+### Reasoning models & the JSON toggle (important for MedGemma)
+**MedGemma 1.5 is a reasoning model** — it emits a private chain-of-thought (wrapped in
+`<unused94>…<unused95>` tokens) before its answer. Two things follow, both handled for you:
+
+- The app **strips the thinking block** from every reply, so chat shows only the answer and
+  agents still get clean JSON.
+- Forcing a **JSON grammar** (`response_format`) on a reasoning model makes it stall or crawl.
+  So the built-in **MedGemma (Local)** engine ships with **JSON grammar OFF** (`json_mode: false`):
+  the model generates freely and the app parses the JSON out of its reply. Hosted engines
+  (OpenAI/Groq) keep grammar ON.
+
+If you add your own local/gateway engine and it hangs or dribbles output, open
+**Settings → Engines → your engine → JSON** and switch it **off**. Replies are still parsed
+either way — this only removes the grammar constraint that small local models struggle with.
+
+> The JSON toggle controls the *grammar constraint only*. Agents always parse structured
+> output regardless; turning JSON off never means "lose the structured result."
 
 ### Hardcode keys (so you're never prompted) — OR let the app ask
 Resolution order for every key: **hardcoded → runtime (UI) → ask on demand**.
@@ -424,6 +442,19 @@ A call routed to a cloud engine and no key was found. Either:
 The engine is set to local MedGemma but Ollama isn't reachable, so it waits on the connection
 before falling back. Start Ollama (`ollama serve`), or in Settings → Routing point the role at a
 cloud engine (no local-connect wait).
+
+### Chat shows `<unused94>thought…` / raw thinking tokens
+That's a reasoning model's private chain-of-thought leaking through. The app strips it
+automatically now — if you still see it, hard-refresh the page and make sure the backend was
+restarted after updating. See
+[Reasoning models & the JSON toggle](#reasoning-models--the-json-toggle-important-for-medgemma).
+
+### The multi-agent pipeline spins forever / never produces output (local model)
+Almost always a **reasoning model fighting a JSON grammar**. Fix: open **Settings → Engines →
+your engine → JSON** and turn it **off** (the built-in MedGemma engine already ships this way).
+Also consider lowering **Max tok** and, for a faster first run on a small local model,
+**Settings → Debate → max rounds = 1–2**. Each debate round is several sequential model calls,
+so on a 4B model high round counts are slow by nature.
 
 ### Port 8000 already in use
 ```bash
