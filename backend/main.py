@@ -81,13 +81,20 @@ app.add_middleware(
 # ── Missing-key handler → 428 so the UI can prompt for exactly that key ──
 @app.exception_handler(NeedsKey)
 async def needs_key_handler(request: Request, exc: NeedsKey):
+    reason = getattr(exc, "reason", "missing")
+    detail = {
+        "missing": f"An API key is required for '{exc.profile_id}'. Add it in Settings.",
+        "rate_limit": f"The current key for '{exc.profile_id}' hit its rate limit. Add your own key to continue.",
+        "invalid": f"The key for '{exc.profile_id}' was rejected (expired or invalid). Enter a valid key.",
+    }.get(reason, f"An API key is required for '{exc.profile_id}'.")
     return JSONResponse(
         status_code=428,
         content={
             "needs_key": True,
             "key_ref": exc.key_ref,
             "profile": exc.profile_id,
-            "detail": f"An API key is required for '{exc.profile_id}'. Add it in Settings.",
+            "reason": reason,
+            "detail": detail,
         },
     )
 
@@ -153,7 +160,16 @@ async def config_status():
         # new: generic engine label for de-branded UI
         "engine_label": primary.label if primary else "Not configured",
         "engine_model": primary.model if primary else "",
+        "demo": __import__("backend.demo", fromlist=["is_enabled"]).is_enabled(),
     }
+
+
+@app.post("/api/config/demo")
+async def set_demo(payload: dict):
+    """Toggle the presentation dataset (Settings → Advanced). In-memory only."""
+    from backend import demo
+    enabled = demo.set_enabled(bool(payload.get("enabled")))
+    return {"enabled": enabled}
 
 
 @app.post("/api/set-api-key")
@@ -367,6 +383,13 @@ async def analyze(request: AnalysisRequest):
 
     request_id = obs_store.new_request_id()
     set_call_context(request_id=request_id)
+
+    from backend import demo
+    if demo.is_enabled():
+        demo.record_demo_traces(request_id)
+        return {"request_id": request_id, "soap": demo.demo_soap(),
+                "debate": demo.demo_debate(), "med_error_panel": demo.demo_med_panel()}
+
     try:
         from backend.agents.orchestrator import full_pipeline
         from backend.safety_panel.med_errors import run_med_error_panel
@@ -583,9 +606,7 @@ Your role:
 - Use structured formatting (bullet points, numbered lists) for clarity.
 - If you are unsure, say so — never fabricate clinical information.
 
-You are NOT a replacement for clinical judgment. Always remind users that your answers are for educational/decision-support purposes only.
-
-IMPORTANT: In future you will have access to a LanceDB vector store with indexed medical literature for RAG-enhanced answers. For now, rely on your training knowledge."""
+You are NOT a replacement for clinical judgment. Always remind users that your answers are for educational/decision-support purposes only."""
 
 
 @app.post("/api/chat")
@@ -597,6 +618,10 @@ async def chat(payload: dict):
     messages = payload.get("messages", [])
     if not messages:
         raise HTTPException(400, "No messages provided")
+
+    from backend import demo
+    if demo.is_enabled():
+        return demo.demo_chat_reply(messages)
 
     # Flatten the multi-turn history into a single user message so it works across
     # any provider (local Ollama included) without provider-specific chat plumbing.
@@ -645,11 +670,24 @@ async def ws_analyze(websocket: WebSocket):
             await websocket.close()
             return
 
-        # Stream progress updates
-        async def send_status(stage: str, detail: str = ""):
-            await websocket.send_json({"type": "status", "stage": stage, "detail": detail})
+        async def send(msg: dict):
+            await websocket.send_json(msg)
 
-        await send_status("parsing", "Parsing clinical input...")
+        async def send_status(stage: str, detail: str = ""):
+            await send({"type": "status", "stage": stage, "detail": detail})
+
+        # Group all calls of this run under one request id for observability.
+        request_id = obs_store.new_request_id()
+        set_call_context(request_id=request_id)
+
+        # Presentation dataset: stream a realistic run without external model calls.
+        from backend import demo
+        if demo.is_enabled():
+            payload = await demo.stream_demo_analysis(send, request_id)
+            await send(payload)
+            return
+
+        await send_status("parsing", "Anonymizing PHI & parsing clinical input")
 
         from backend.input_layer.anonymizer import get_anonymizer
         from backend.input_layer.text_parser import parse_text_input
@@ -658,10 +696,6 @@ async def ws_analyze(websocket: WebSocket):
         clean_text = anon.anonymize(text)
         patient = parse_text_input(clean_text)
         patient.current_prompt = text
-
-        # Group all calls of this run under one request id for observability.
-        request_id = obs_store.new_request_id()
-        set_call_context(request_id=request_id)
 
         from backend.debate.debate_engine import run_debate
         from backend.llm.registry import get_debate
@@ -673,15 +707,24 @@ async def ws_analyze(websocket: WebSocket):
         max_rounds = data.get("max_debate_rounds") or debate_cfg.max_rounds
         max_rounds = max(debate_cfg.min_rounds, min(int(max_rounds), 10))
 
-        await send_status("agents", f"Running multi-agent debate (up to {max_rounds} rounds)...")
+        # Forward live debate progress (round + which agent) straight to the client.
+        async def on_event(evt: dict):
+            await send(evt)
 
-        # Real multi-round debate + med-error panel in parallel (same path as REST).
+        # Med-error panel runs in parallel with the debate (as its own tracked step).
+        await send({"type": "agent", "agent": "med_panel", "round": 0, "status": "start"})
+
+        async def _run_panel():
+            r = await run_med_error_panel(patient)
+            await send({"type": "agent", "agent": "med_panel", "round": 0, "status": "done"})
+            return r
+
         debate_state, med_panel = await asyncio.gather(
-            run_debate(patient, max_rounds=max_rounds),
-            run_med_error_panel(patient),
+            run_debate(patient, max_rounds=max_rounds, on_event=on_event),
+            _run_panel(),
         )
 
-        # Stream the final-round output of each agent.
+        # Also send the final structured output of each agent (for detail panels).
         for agent_name, outs in (
             ("clinical", debate_state.clinical_outputs),
             ("literature", debate_state.literature_outputs),
@@ -689,16 +732,13 @@ async def ws_analyze(websocket: WebSocket):
             ("critic", debate_state.critic_outputs),
         ):
             if outs:
-                await websocket.send_json({
-                    "type": "agent_result", "agent": agent_name, "data": outs[-1].model_dump(),
-                })
+                await send({"type": "agent_result", "agent": agent_name, "data": outs[-1].model_dump()})
 
-        await send_status("synthesis", "Generating final SOAP note...")
+        await send_status("synthesis", "Synthesizing final SOAP note")
         soap = await synthesize_soap(patient, debate_state)
         soap = validate_output(soap)
 
-        # Send final result
-        await websocket.send_json({
+        await send({
             "type": "complete",
             "request_id": request_id,
             "soap": soap.model_dump(),

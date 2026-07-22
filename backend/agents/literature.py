@@ -112,11 +112,29 @@ async def _search_pubmed(
                 f"PMID: {r.get('pmid', 'N/A')}. "
                 f"{r.get('abstract', '')[:200]}..."
             )
-        return "\n".join(formatted)
+        joined = "\n".join(formatted)
+        _trace_pubmed(queries[:3], joined, len(results))
+        return joined
 
     except Exception as e:
         logger.warning(f"PubMed search failed: {e}")
         return ""
+
+
+def _trace_pubmed(queries: list[str], results_text: str, n_hits: int) -> None:
+    """Record the PubMed retrieval as an observability trace (shows in the drill-down)."""
+    try:
+        from backend.observability.store import record_trace
+        from .llm_client import current_context
+        rid, rnd = current_context()
+        record_trace(
+            role="literature", profile="pubmed", provider="pubmed", model="eutils",
+            request_id=rid, debate_round=rnd, latency_ms=0, success=True,
+            request_messages=[{"role": "query", "content": "; ".join(queries)}],
+            response_text=results_text, meta={"source": "PubMed E-utilities", "hits": n_hits},
+        )
+    except Exception:
+        pass
 
 
 def _parse_output(data: Any) -> LiteratureAgentOutput:

@@ -51,6 +51,11 @@ def set_call_context(request_id: Optional[str] = None, debate_round: Optional[in
         _ctx_debate_round.set(debate_round)
 
 
+def current_context() -> tuple[Optional[str], Optional[int]]:
+    """Ambient (request_id, debate_round) — used by non-LLM steps (e.g. PubMed) to co-trace."""
+    return _ctx_request_id.get(), _ctx_debate_round.get()
+
+
 def load_prompt(name: str) -> str:
     """Load a system prompt from the prompts/ directory."""
     path = PROMPTS_DIR / name
@@ -164,7 +169,8 @@ async def _call_profile(
 
             cost = _safe_cost(resp)
             _record(role, profile, fallback_index, request_id, debate_round,
-                    tokens_in, tokens_out, latency_ms, success=True, cost=cost)
+                    tokens_in, tokens_out, latency_ms, success=True, cost=cost,
+                    request_messages=args.get("messages"), response_text=content_str)
 
             return {
                 "content": parse_content(content_str, use_json),
@@ -189,9 +195,29 @@ async def _call_profile(
             break  # non-retryable
 
     latency_ms = int((time.monotonic() - start) * 1000)
+    # Classify: a keyed engine that failed on auth/rate-limit → prompt the user for a key.
+    key_reason = _key_failure_reason(last_exc)
     _record(role, profile, fallback_index, request_id, debate_round,
-            0, 0, latency_ms, success=False, error=str(last_exc))
+            0, 0, latency_ms, success=False,
+            error=(f"key:{key_reason}" if key_reason else str(last_exc)),
+            request_messages=args.get("messages"))
+    if profile.api_key_ref and key_reason:
+        raise NeedsKey(profile.api_key_ref, profile.id, reason=key_reason)
     raise last_exc  # type: ignore[misc]
+
+
+def _key_failure_reason(exc: Optional[Exception]) -> Optional[str]:
+    """Return 'rate_limit' | 'invalid' if the failure looks like a key problem, else None."""
+    if exc is None:
+        return None
+    code = getattr(exc, "status_code", 0) or 0
+    msg = str(exc).lower()
+    if code == 429 or "rate limit" in msg or "quota" in msg or "too many requests" in msg:
+        return "rate_limit"
+    if code in (401, 403) or "invalid api key" in msg or "expired" in msg \
+            or "invalid_api_key" in msg or "incorrect api key" in msg or "authentication" in msg:
+        return "invalid"
+    return None
 
 
 def _safe_cost(resp: Any) -> Optional[float]:
@@ -202,7 +228,8 @@ def _safe_cost(resp: Any) -> Optional[float]:
 
 
 def _record(role, profile: Profile, idx, request_id, debate_round,
-            tin, tout, latency, *, success, error=None, cost=None) -> None:
+            tin, tout, latency, *, success, error=None, cost=None,
+            request_messages=None, response_text=None) -> None:
     """Fire-and-forget trace; observability must never break a call."""
     try:
         from backend.observability.store import record_trace
@@ -211,7 +238,7 @@ def _record(role, profile: Profile, idx, request_id, debate_round,
             model=profile.model, base_url=profile.base_url, request_id=request_id,
             debate_round=debate_round, tokens_in=tin, tokens_out=tout,
             latency_ms=latency, cost_usd=cost, success=success, error=error,
-            fallback_index=idx,
+            fallback_index=idx, request_messages=request_messages, response_text=response_text,
         )
     except Exception:
         pass

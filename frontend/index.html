@@ -59,7 +59,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#fafafa;o
 /* ── Splash ───────────────────────────────────── */
 #splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#09090b;transition:opacity .6s,visibility .6s}
 #splash.hide{opacity:0;visibility:hidden;pointer-events:none}
-#splash .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;animation:splashPulse 1.5s ease-in-out infinite}
+#splash .logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#38bdf8,#2563eb 55%,#1d4ed8);display:flex;align-items:center;justify-content:center;animation:splashPulse 1.5s ease-in-out infinite}
 #splash .bar{width:120px;height:3px;background:#27272a;border-radius:99px;margin-top:24px;overflow:hidden}
 #splash .bar-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:99px;animation:splashBar 1.8s ease-in-out forwards}
 @keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
@@ -103,15 +103,34 @@ body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#fafafa;o
 /* Tab pill */
 .tab-pill{transition:all .2s}.tab-pill[data-active="true"]{background:rgba(59,130,246,.12);color:#60a5fa;border-color:rgba(59,130,246,.25)}
 
-/* Report paper */
-.report-paper{background:#fafafa;color:#18181b;border-radius:12px;font-family:'Inter',sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.12)}
-.report-paper *{color:#18181b}
+/* Report paper — skeuomorphic clinical letterhead */
+.report-wrap{position:relative;padding:14px;border-radius:20px;background:
+  radial-gradient(120% 60% at 50% 0%, rgba(37,99,235,.10), transparent 60%),
+  linear-gradient(180deg,#0f1729,#0b1120)}
+.report-paper{position:relative;background:
+  linear-gradient(#ffffff,#ffffff) padding-box;
+  color:#1a1a1e;border-radius:14px;font-family:'Inter',sans-serif;
+  background-color:#fdfdfb;
+  background-image:linear-gradient(#fdfdfb,#f6f6f2);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 2px 4px rgba(0,0,0,.10), 0 18px 50px -12px rgba(0,0,0,.55), 0 40px 80px -30px rgba(0,0,0,.5);
+  border:1px solid #e7e5df;overflow:hidden}
+/* faint ruled-paper texture + a soft top sheen */
+.report-paper::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 31px, rgba(37,99,235,.045) 31px 32px);
+  mask-image:linear-gradient(180deg,transparent,#000 120px);opacity:.7}
+.report-paper::after{content:"";position:absolute;top:0;left:0;right:0;height:6px;
+  background:linear-gradient(90deg,#38bdf8,#2563eb 50%,#1d4ed8)}
+.report-paper *{color:#1a1a1e}
 .report-paper .section-label{color:#52525b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.report-paper .bar-s{border-left:3px solid #2563eb}.report-paper .bar-o{border-left:3px solid #059669}.report-paper .bar-a{border-left:3px solid #d97706}.report-paper .bar-p{border-left:3px solid #7c3aed}
+.report-paper .rx-watermark{position:absolute;right:-10px;bottom:-24px;font-size:190px;line-height:1;font-weight:800;color:rgba(37,99,235,.05);font-family:'DM Sans',sans-serif;pointer-events:none;user-select:none}
+.report-paper .soap-card{background:#ffffffcc;border:1px solid #eceae4;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.report-paper .bar-s{border-left:4px solid #2563eb}.report-paper .bar-o{border-left:4px solid #059669}.report-paper .bar-a{border-left:4px solid #d97706}.report-paper .bar-p{border-left:4px solid #7c3aed}
+.report-paper .soap-tag{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:'DM Sans';font-weight:800;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18)}
 
 /* Print / PDF */
-@media print{body{background:#fff !important}#splash,.no-print{display:none !important}.report-paper{box-shadow:none;border:1px solid #e4e4e7}}
+@media print{body{background:#fff !important}#splash,.no-print{display:none !important}.report-wrap{background:#fff;padding:0}.report-paper{box-shadow:none;border:1px solid #e4e4e7}}
 .pdf-target .report-paper{box-shadow:none}
+.pdf-target .report-wrap{background:#fff;padding:0}
 
 /* Mobile safe area */
 @supports(padding:env(safe-area-inset-bottom)){.safe-b{padding-bottom:env(safe-area-inset-bottom)}}
@@ -125,7 +144,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#09090b;color:#fafafa;o
 <body class="dark">
 <!-- Splash Screen -->
 <div id="splash">
-  <div class="logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg></div>
+  <div class="logo"><svg width="30" height="30" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 27 H16 L20 16 L26 33 L30 24 H41" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="41" cy="24" r="2.6" fill="#fff"/></svg></div>
   <p style="margin-top:16px;font-family:'DM Sans';font-size:18px;font-weight:700;color:#fafafa;letter-spacing:-.02em">ClinicalPilot</p>
   <p style="margin-top:4px;font-size:12px;color:#71717a">Loading clinical workspace…</p>
   <div class="bar"><div class="bar-fill"></div></div>
@@ -144,7 +163,7 @@ async function cpFetch(url,opts){
   const r=await fetch(url,opts);
   if(r.status===428){
     const j=await r.json().catch(()=>({}));
-    if(j&&j.needs_key&&_cpPromptKey)_cpPromptKey(j.key_ref,j.profile);
+    if(j&&j.needs_key&&_cpPromptKey)_cpPromptKey(j.key_ref,j.profile,j.reason);
     throw new Error(j&&j.detail?j.detail:'An API key is required — open Settings to add it.');
   }
   return r;
@@ -202,6 +221,22 @@ const _i={
   settings:<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></>,
 };
 function Ic({name,size=18,className='',style={}}){return <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>{_i[name]}</svg>}
+
+/* Brand mark — a clean ECG heartbeat inside a rounded badge (blue→cyan, no purple). */
+function Logo({size=36,radius=11}){
+  const g=`cpg${size}`;
+  return <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}>
+    <defs>
+      <linearGradient id={g} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#38bdf8"/><stop offset="0.5" stopColor="#2563eb"/><stop offset="1" stopColor="#1d4ed8"/>
+      </linearGradient>
+    </defs>
+    <rect width="48" height="48" rx={radius} fill={`url(#${g})`}/>
+    <rect x="0" y="0" width="48" height="22" rx={radius} fill="#ffffff" opacity="0.10"/>
+    <path d="M7 27 H16 L20 16 L26 33 L30 24 H41" fill="none" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="41" cy="24" r="2.4" fill="#ffffff"/>
+  </svg>;
+}
 
 /* ════════════════════════════════════════════════════════
    TOAST
@@ -263,13 +298,20 @@ const SAMPLES=[
   "28-year-old female, 3-day progressive dyspnea, pleuritic chest pain, low-grade fever. Recent 12-hour flight from Australia.\n\nPMH: Combined OCP use, BMI 32\nVitals: BP 118/76, HR 112, RR 24, Temp 100.4°F, SpO2 91% on RA\nLabs: D-dimer 2.4 μg/mL (ref < 0.5), WBC 11.8, Troponin 0.06\n\nLeft calf swelling +2cm, tender. Decreased breath sounds left base.\nAllergies: NKDA",
 ];
 
+// High-level phases of one analysis run.
 const PIPELINE_STEPS=[
-  {key:'parsing',label:'Input Parsing',icon:'fileText'},
-  {key:'agents',label:'AI Agents',icon:'brain'},
-  {key:'debate',label:'Debate',icon:'scale'},
-  {key:'synthesis',label:'Synthesis',icon:'sparkles'},
-  {key:'safety_panel',label:'Safety',icon:'shield'},
+  {key:'parsing',label:'Parse & Anonymize',icon:'fileText'},
+  {key:'agents',label:'Multi-Agent Debate',icon:'brain'},
+  {key:'synthesis',label:'Synthesize SOAP',icon:'sparkles'},
 ];
+// The actual agents that deliberate each round (shown live).
+const PIPE_AGENTS=[
+  {key:'clinical',label:'Clinical',icon:'stethoscope',color:'#2563eb'},
+  {key:'literature',label:'Literature',icon:'book',color:'#0ea5e9'},
+  {key:'safety',label:'Safety',icon:'shield',color:'#f43f5e'},
+  {key:'critic',label:'Critic',icon:'scale',color:'#f59e0b'},
+];
+const AGENT_LABEL={clinical:'Clinical agent',literature:'Literature agent',safety:'Safety agent',critic:'Critic',med_panel:'Med-error panel',synthesizer:'Synthesizer'};
 
 const CLASSIFIERS=[
   {id:'lung',name:'Lung Disease',icon:'🫁',desc:'Chest X-ray AI classification',url:'https://lung-disease-classification.streamlit.app/',color:'#3b82f6'},
@@ -349,7 +391,7 @@ function AnalysisProvider({children}){
   const[input,setInput]=useState('');
   const[busy,setBusy]=useState(false);
   const[res,setRes]=useState(null);
-  const[steps,setSteps]=useState({});
+  const[pipe,setPipe]=useState(null); // {stage,round,maxRounds,agents{},medPanel,synth}
   const[agentMsgs,setAgentMsgs]=useState([]);
   const[logs,setLogs]=useState([]);
   const[fbBusy,setFbBusy]=useState(false); // human-feedback re-analysis in flight
@@ -360,55 +402,70 @@ function AnalysisProvider({children}){
   const fbStoppedRef=useRef(false);
 
   const log=useCallback((src,msg)=>{const time=new Date().toLocaleTimeString('en-US',{hour12:false});setLogs(p=>[...p,{time,src,msg}])},[]);
-  const addMsg=useCallback((text,type='status')=>setAgentMsgs(p=>[...p,{text,type}]),[]);
-  const uStep=useCallback((k,v)=>setSteps(p=>({...p,[k]:v})),[]);
-  const allDone=useCallback(()=>PIPELINE_STEPS.forEach(s=>uStep(s.key,'done')),[uStep]);
+  const addMsg=useCallback((text,type='status',round)=>setAgentMsgs(p=>[...p,{text,type,round}]),[]);
+  const freshPipe=()=>({stage:'parsing',round:0,maxRounds:1,agents:{},medPanel:'pending',synth:'pending'});
+  const setAgent=useCallback((name,st,round)=>setPipe(p=>{
+    if(!p)return p;
+    if(name==='med_panel')return{...p,medPanel:st};
+    return{...p,agents:{...p.agents,[name]:st},round:round||p.round};
+  }),[]);
 
   const tryWS=useCallback(text=>new Promise(resolve=>{
     const url=`${API.replace('http','ws')}/ws/analyze`;
     let ws;try{ws=new WebSocket(url)}catch{resolve(false);return}
     wsRef.current=ws;
     const to=setTimeout(()=>{try{ws.close()}catch{}resolve(false)},4000);
-    ws.onopen=()=>{clearTimeout(to);ws.send(JSON.stringify({text}));log('system','WebSocket connected');addMsg('Stream opened')};
+    ws.onopen=()=>{clearTimeout(to);ws.send(JSON.stringify({text}));log('system','Connected — streaming pipeline')};
     ws.onmessage=ev=>{try{
       const m=JSON.parse(ev.data);
       if(m.type==='status'){
-        const d=m.detail||m.stage||'';log('pipeline',d);addMsg(d);
-        const s=(m.stage||d).toLowerCase();
-        if(s.includes('pars')){uStep('parsing','done');uStep('agents','active')}
-        if(s.includes('agent')){uStep('parsing','done');uStep('agents','active')}
-        if(s.includes('literature')||s.includes('safety'))addMsg(d,'agent');
-        if(s.includes('debate')||s.includes('critic')){uStep('agents','done');uStep('debate','active')}
-        if(s.includes('synth')){uStep('debate','done');uStep('synthesis','active')}
-        if(s.includes('safety')&&s.includes('panel')){uStep('synthesis','done');uStep('safety_panel','active')}
-      }else if(m.type==='agent_result'){log('pipeline',`${m.agent} ✓`);addMsg(`${m.agent} completed`,'agent')}
-      else if(m.type==='complete'){allDone();setRes(m);setBusy(false);wsRef.current=null;log('system','✓ Complete');t('Analysis complete','success');resolve(true)}
-      else if(m.type==='error'){log('error',m.message||'');t(m.message||'Error','error')}
+        const d=m.detail||m.stage||'';const s=(m.stage||'').toLowerCase();
+        log('pipeline',d);addMsg(d,'status');
+        if(s.includes('pars'))setPipe(p=>({...(p||freshPipe()),stage:'parsing'}));
+        else if(s.includes('synth'))setPipe(p=>({...(p||freshPipe()),stage:'synthesis',synth:'active'}));
+      }else if(m.type==='round_start'){
+        setPipe(p=>({...(p||freshPipe()),stage:'agents',round:m.round,maxRounds:m.max_rounds||1,agents:{}}));
+        log('pipeline',`Round ${m.round} started`);addMsg(`Round ${m.round} — agents deliberating`,'round',m.round);
+      }else if(m.type==='agent'){
+        setAgent(m.agent,m.status,m.round);
+        if(m.status==='start')addMsg(`${AGENT_LABEL[m.agent]||m.agent} working`,'agent',m.round);
+        else if(m.status==='done')addMsg(`${AGENT_LABEL[m.agent]||m.agent} done${m.consensus!==undefined?(m.consensus?' — consensus':' — dissent'):''}`,'agent',m.round);
+      }else if(m.type==='round_end'){
+        setPipe(p=>p?{...p,agents:Object.fromEntries(PIPE_AGENTS.map(a=>[a.key,'done']))}:p);
+      }else if(m.type==='agent_result'){
+        addMsg(`${AGENT_LABEL[m.agent]||m.agent} result received`,'result');
+      }else if(m.type==='complete'){
+        setPipe(p=>({...(p||freshPipe()),stage:'done',synth:'done',medPanel:'done',agents:Object.fromEntries(PIPE_AGENTS.map(a=>[a.key,'done']))}));
+        setRes(m);setBusy(false);wsRef.current=null;log('system','✓ Complete');t('Analysis complete','success');resolve(true);
+      }else if(m.type==='error'){log('error',m.message||'');t(m.message||'Error','error')}
     }catch{}};
     ws.onerror=()=>{clearTimeout(to);resolve(false)};
     ws.onclose=()=>{wsRef.current=null;resolve(false)};
-  }),[log,addMsg,uStep,allDone,t]);
+  }),[log,addMsg,setAgent,t]);
 
   const run=useCallback(async()=>{
     if(busy)return;
     if(!input.trim()){t('Enter clinical data','warning');return}
     stoppedRef.current=false;
-    setBusy(true);setRes(null);setSteps({parsing:'active'});setLogs([]);setAgentMsgs([]);
-    log('system','Starting analysis…');addMsg('Initializing pipeline');
+    setBusy(true);setRes(null);setPipe(freshPipe());setLogs([]);setAgentMsgs([]);
+    log('system','Starting analysis…');
     try{
       if(await tryWS(input.trim()))return;
       if(stoppedRef.current)return;
       log('system','REST fallback');
+      setPipe(p=>({...(p||freshPipe()),stage:'agents',round:1,maxRounds:1,agents:Object.fromEntries(PIPE_AGENTS.map(a=>[a.key,'active'])),medPanel:'active'}));
       const ctrl=new AbortController();abortRef.current=ctrl;
       const r=await cpFetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()}),signal:ctrl.signal});
       if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`)}
-      const data=await r.json();allDone();setRes(data);log('system','✓ Complete');t('Analysis complete','success');
+      const data=await r.json();
+      setPipe(p=>({...(p||freshPipe()),stage:'done',synth:'done',medPanel:'done',agents:Object.fromEntries(PIPE_AGENTS.map(a=>[a.key,'done']))}));
+      setRes(data);log('system','✓ Complete');t('Analysis complete','success');
     }catch(e){
       if(stoppedRef.current||e.name==='AbortError')return;
-      log('error',e.message);t(e.message,'error');setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='error';return n});
+      log('error',e.message);t(e.message,'error');setPipe(p=>p?{...p,stage:'error'}:p);
     }
     finally{abortRef.current=null;if(!stoppedRef.current)setBusy(false)}
-  },[busy,input,tryWS,log,addMsg,allDone,t]);
+  },[busy,input,tryWS,log,t]);
 
   const stop=useCallback(()=>{
     if(!busy)return;
@@ -417,13 +474,13 @@ function AnalysisProvider({children}){
     try{abortRef.current?.abort()}catch{}
     wsRef.current=null;abortRef.current=null;
     setBusy(false);
-    setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='stopped';return n});
+    setPipe(p=>p?{...p,stage:'stopped',agents:Object.fromEntries(Object.entries(p.agents).map(([k,v])=>[k,v==='active'?'stopped':v]))}:p);
     log('system','■ Analysis stopped');addMsg('Stopped by user','error');t('Analysis stopped','info');
   },[busy,log,addMsg,t]);
 
   const clear=useCallback(()=>{
     if(busy)return;
-    setInput('');setRes(null);setSteps({});setLogs([]);setAgentMsgs([]);
+    setInput('');setRes(null);setPipe(null);setLogs([]);setAgentMsgs([]);
   },[busy]);
 
   const uploadFile=useCallback(async(file,ep)=>{
@@ -495,7 +552,7 @@ P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
     log('system','■ Re-analysis stopped');t('Re-analysis stopped','info');
   },[fbBusy,log,t]);
 
-  const val={input,setInput,busy,res,steps,agentMsgs,logs,fbBusy,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback,stopFeedback};
+  const val={input,setInput,busy,res,pipe,agentMsgs,logs,fbBusy,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback,stopFeedback};
   return <AnalysisCtx.Provider value={val}>{children}</AnalysisCtx.Provider>;
 }
 
@@ -577,9 +634,7 @@ const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activePro
     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
       {/* Logo */}
       <div className="flex items-center gap-3 shrink-0">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'linear-gradient(135deg,#2563eb,#7c3aed)'}}>
-          <Ic name="stethoscope" size={18} className="text-white"/>
-        </div>
+        <div className="shadow-lg shadow-brand-600/20 rounded-xl"><Logo size={36}/></div>
         <div className="hidden sm:block">
           <h1 className="text-[17px] font-display font-bold tracking-tight text-white leading-none">ClinicalPilot</h1>
           <p className="text-[10px] text-zinc-500 font-medium mt-0.5">AI Decision Support</p>
@@ -608,7 +663,7 @@ const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activePro
           </button>
         </div>}
         <button onClick={onSettingsClick} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-zinc-700/60 hover:border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/80 transition group" title="Settings">
-          <Ic name="keyRound" size={14} className="text-zinc-500 group-hover:text-brand-400 transition"/>
+          <Ic name="settings" size={15} className="text-zinc-500 group-hover:text-brand-400 transition"/>
           <div className={`w-1.5 h-1.5 rounded-full ${provColor}`}/>
         </button>
         <div className="flex items-center gap-2">
@@ -632,28 +687,65 @@ const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activePro
 /* ════════════════════════════════════════════════════════
    PIPELINE VISUALIZER — clean, animated
    ════════════════════════════════════════════════════════ */
-function PipelineViz({steps,msgs}){
+function AgentChip({label,icon,status,accent}){
+  const active=status==='active',done=status==='done',stopped=status==='stopped';
+  return <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-300 ${
+    active?'border-brand-500/50 bg-brand-500/[.08]':done?'border-emerald-500/40 bg-emerald-500/[.06]':stopped?'border-amber-500/40 bg-amber-500/[.06]':'border-zinc-800 bg-zinc-900/60'}`}>
+    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{background:active||done?`${accent}1f`:'#18181b',border:`1px solid ${active||done?accent+'55':'#27272a'}`}}>
+      {active?<span className="spinner spinner-sm"/>:done?<Ic name="check" size={13} className="text-emerald-400"/>:stopped?<Ic name="square" size={11} className="text-amber-400"/>:<Ic name={icon} size={13} style={{color:'#52525b'}}/>}
+    </div>
+    <div className="min-w-0">
+      <div className={`text-[12px] font-semibold leading-tight ${active?'text-white':done?'text-emerald-300':'text-zinc-500'}`}>{label}</div>
+      <div className={`text-[9px] uppercase tracking-wide ${active?'text-brand-400':done?'text-emerald-500/70':stopped?'text-amber-500':'text-zinc-600'}`}>{active?'Working…':done?'Done':stopped?'Stopped':'Queued'}</div>
+    </div>
+  </div>;
+}
+
+function PipelineViz({pipe,msgs}){
+  const p=pipe||{stage:'parsing',agents:{},round:0,maxRounds:1};
+  const phaseState=k=>{
+    const order=['parsing','agents','synthesis'];
+    if(p.stage==='done')return 'done';
+    if(p.stage==='stopped')return k==='parsing'?'done':'stopped';
+    const ci=order.indexOf(p.stage),ki=order.indexOf(k);
+    if(ki<ci)return 'done'; if(ki===ci)return 'active'; return 'pending';
+  };
+  const multi=(p.maxRounds||1)>1;
+  const roundText=p.round>0?(multi?`Round ${p.round} of ${p.maxRounds}`:'Single-pass consensus'):'Preparing';
   return <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up">
-    <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-4 font-display">Pipeline Progress</p>
-    <div className="flex items-center justify-between gap-1 mb-4">
+    {/* Phase rail */}
+    <div className="flex items-center justify-between mb-1">
+      <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest font-display">Live Pipeline</p>
+      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/20">{roundText}</span>
+    </div>
+    <div className="flex items-center justify-between gap-1 my-4">
       {PIPELINE_STEPS.map((s,i)=>{
-        const st=steps[s.key]||'pending';
-        const done=st==='done',active=st==='active',err=st==='error',stopped=st==='stopped';
+        const st=phaseState(s.key),done=st==='done',active=st==='active',stopped=st==='stopped';
         return <React.Fragment key={s.key}>
           <div className="flex flex-col items-center gap-1.5 flex-1">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500 ${
-              done?'border-emerald-500/50 bg-emerald-500/10':active?'border-brand-500/50 bg-brand-500/10':err?'border-rose-500/50 bg-rose-500/10':stopped?'border-amber-500/50 bg-amber-500/10':'border-zinc-800 bg-zinc-900'
-            }`}>{done?<Ic name="check" size={16} className="text-emerald-400"/>:active?<span className="spinner spinner-sm"/>:err?<Ic name="x" size={14} className="text-rose-400"/>:stopped?<Ic name="square" size={13} className="text-amber-400"/>:<Ic name={s.icon} size={15} className="text-zinc-600"/>}</div>
-            <span className={`text-[10px] font-medium text-center leading-tight ${done?'text-emerald-400':active?'text-brand-400':err?'text-rose-400':stopped?'text-amber-400':'text-zinc-600'}`}>{s.label}</span>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500 ${done?'border-emerald-500/50 bg-emerald-500/10':active?'border-brand-500/50 bg-brand-500/10':stopped?'border-amber-500/50 bg-amber-500/10':'border-zinc-800 bg-zinc-900'}`}>
+              {done?<Ic name="check" size={16} className="text-emerald-400"/>:active?<span className="spinner spinner-sm"/>:stopped?<Ic name="square" size={13} className="text-amber-400"/>:<Ic name={s.icon} size={15} className="text-zinc-600"/>}
+            </div>
+            <span className={`text-[10px] font-medium text-center leading-tight ${done?'text-emerald-400':active?'text-brand-400':stopped?'text-amber-400':'text-zinc-600'}`}>{s.label}</span>
           </div>
           {i<PIPELINE_STEPS.length-1&&<div className={`h-0.5 flex-1 mt-[-18px] rounded-full transition-all duration-700 ${done?'bg-emerald-500/30':active?'bg-brand-500/20 shimmer-bg':'bg-zinc-800'}`}/>}
         </React.Fragment>;
       })}
     </div>
-    {msgs.length>0&&<div className="border-t border-zinc-800/60 pt-3 max-h-28 overflow-y-auto space-y-1">
-      {msgs.slice(-6).map((m,i)=><div key={i} className="flex items-center gap-2 text-[11px] anim-slide-r font-mono">
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.type==='agent'?'bg-violet-400':m.type==='error'?'bg-rose-400':'bg-brand-400'}`} style={{animation:'pulse2 1.5s ease-in-out infinite'}}/>
-        <span className="text-zinc-500">{m.text}</span>
+    {/* Live agents */}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+      {PIPE_AGENTS.map(a=><AgentChip key={a.key} label={a.label} icon={a.icon} accent={a.color} status={p.agents?.[a.key]||'pending'}/>)}
+    </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <AgentChip label="Med-Error Panel" icon="pill" accent="#8b5cf6" status={p.medPanel||'pending'}/>
+      <AgentChip label="Synthesizer" icon="sparkles" accent="#10b981" status={p.synth||'pending'}/>
+    </div>
+    {/* Activity log with round tags */}
+    {msgs.length>0&&<div className="border-t border-zinc-800/60 mt-3 pt-3 max-h-28 overflow-y-auto space-y-1">
+      {msgs.slice(-7).map((m,i)=><div key={i} className="flex items-center gap-2 text-[11px] anim-slide-r font-mono">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.type==='agent'?'bg-violet-400':m.type==='error'?'bg-rose-400':m.type==='round'?'bg-amber-400':m.type==='result'?'bg-emerald-400':'bg-brand-400'}`} style={{animation:'pulse2 1.5s ease-in-out infinite'}}/>
+        {m.round?<span className="text-[9px] px-1 rounded bg-zinc-800 text-zinc-500 shrink-0">R{m.round}</span>:null}
+        <span className="text-zinc-500 truncate">{m.text}</span>
       </div>)}
     </div>}
   </div>;
@@ -716,28 +808,36 @@ function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
 
     {/* ── THE PAPER REPORT ── */}
     <div ref={reportRef} className="pdf-target">
+     <div className="report-wrap">
       <div className="report-paper p-6 sm:p-10">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b-2 border-zinc-200 pb-5 mb-6">
-          <div>
-            <h2 className="text-2xl font-display font-bold text-zinc-900 tracking-tight">Clinical Assessment Report</h2>
-            <p className="text-sm text-zinc-500 mt-1 font-medium">Generated by ClinicalPilot — Multi-Agent AI Decision Support</p>
+        <div className="rx-watermark">℞</div>
+        {/* Letterhead */}
+        <div className="flex items-start justify-between border-b border-zinc-200 pb-5 mb-6">
+          <div className="flex items-center gap-3.5">
+            <div style={{width:44,height:44}}><Logo size={44} radius={12}/></div>
+            <div>
+              <h2 className="text-[22px] font-display font-bold text-zinc-900 tracking-tight leading-none">Clinical Assessment</h2>
+              <p className="text-[12px] text-zinc-500 mt-1.5 font-medium tracking-wide">CLINICALPILOT · MULTI-AGENT DECISION SUPPORT</p>
+            </div>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xs text-zinc-400">Date</p>
-            <p className="text-sm font-semibold text-zinc-700">{new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p>
+            <p className="text-[10px] text-zinc-400 uppercase tracking-wider">Issued</p>
+            <p className="text-[13px] font-semibold text-zinc-700">{new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'})}</p>
             <span className={`inline-block mt-2 text-[10px] font-bold px-2.5 py-1 rounded-full ${conf==='high'?'bg-emerald-100 text-emerald-700':conf==='low'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700'}`}>
               {conf.toUpperCase()} CONFIDENCE
             </span>
           </div>
         </div>
 
-        {/* SOAP Sections */}
-        <div className="space-y-5">
-          {SOAP_SEC.map(s=><div key={s.key} className={`${s.bar} pl-5 py-4 rounded-r-lg`} style={{background:`${s.accent}08`}}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{background:s.accent}}>{s.tag}</span>
-              <h3 className="text-sm font-bold uppercase tracking-wide" style={{color:s.accent}}>{s.label}</h3>
+        {/* SOAP Sections — as clinical note cards */}
+        <div className="space-y-3.5 relative">
+          {SOAP_SEC.map(s=><div key={s.key} className={`soap-card ${s.bar} pl-4 pr-4 py-4 rounded-xl`}>
+            <div className="flex items-center gap-2.5 mb-2">
+              <span className="soap-tag" style={{background:`linear-gradient(135deg,${s.accent},${s.accent}cc)`}}>{s.tag}</span>
+              <div>
+                <h3 className="text-[13px] font-bold uppercase tracking-wide leading-none" style={{color:s.accent}}>{s.label}</h3>
+                <span className="text-[9px] text-zinc-400 uppercase tracking-wider">{{subjective:'History & complaint',objective:'Exam, vitals & labs',assessment:'Clinical impression',plan:'Management'}[s.key]}</span>
+              </div>
             </div>
             <div className={`text-[14px] text-zinc-700 leading-[1.7] whitespace-pre-wrap ${editing?'outline outline-2 outline-blue-400/40 rounded-lg p-3 bg-blue-50 cursor-text':''}`}
               contentEditable={editing} suppressContentEditableWarning>{soap[s.key]||'—'}</div>
@@ -832,6 +932,7 @@ function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
           <span>ClinicalPilot v2.0 — For research & educational use only</span>
         </div>
       </div>
+     </div>
     </div>
 
     {/* ── Doctor Feedback (post-report) ── */}
@@ -894,13 +995,13 @@ function Sidebar({logs,soap}){
    ════════════════════════════════════════════════════════ */
 function AnalysisView(){
   const t=useToast();
-  const{input,setInput,busy,res,steps,agentMsgs,logs,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback}=useAnalysis();
+  const{input,setInput,busy,res,pipe,agentMsgs,logs,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback}=useAnalysis();
   const taRef=useRef(null);
 
   const soap=res?.soap||(res?.subjective?res:null);
   const debate=res?.debate||{};
   const medPanel=res?.med_error_panel||{};
-  const showPipeline=Object.keys(steps).length>0;
+  const showPipeline=!!pipe;
 
   return <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 relative z-10">
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -974,7 +1075,7 @@ function AnalysisView(){
           </div>
         </div>
 
-        {showPipeline&&!soap&&<PipelineViz steps={steps} msgs={agentMsgs}/>}
+        {showPipeline&&!soap&&<PipelineViz pipe={pipe} msgs={agentMsgs}/>}
 
         {soap&&<ClinicalReport soap={soap} debate={debate} medPanel={medPanel} onFeedback={feedback}/>}
       </div>
@@ -1167,7 +1268,7 @@ function ArchView(){
       <div ref={flowRef} className={`mermaid min-h-[280px] ${tab!=='flow'?'hidden':''}`}/>
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
-      {[{t:'AI & Reasoning',c:'text-violet-400',items:['Configurable engines (local + cloud)','Multi-agent debate (adjustable rounds)','Critic consensus engine','Human-in-the-loop feedback']},{t:'Safety & Data',c:'text-rose-400',items:['Presidio PHI anonymizer','PubMed / Entrez','RxNorm interactions','FDA + DrugBank']},{t:'Infrastructure',c:'text-brand-400',items:['FastAPI + WebSocket','React 18 (CDN)','LanceDB vectors','Pydantic v2 validation']}].map((s,i)=>
+      {[{t:'AI & Reasoning',c:'text-sky-400',items:['LiteLLM gateway — any provider/model','Per-agent routing with fallback','Multi-agent debate + critic consensus','Human-in-the-loop re-analysis']},{t:'Safety & Data',c:'text-rose-400',items:['Presidio PHI anonymization','PubMed / Entrez evidence','RxNorm + DrugBank interactions','openFDA lookups']},{t:'Infrastructure',c:'text-brand-400',items:['FastAPI + WebSocket streaming','React 18 (zero-build CDN)','Built-in observability (SQLite)','Pydantic v2 validation']}].map((s,i)=>
         <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 anim-fade-up" style={{animationDelay:`${i*.08}s`}}>
           <h3 className={`text-sm font-display font-bold ${s.c} mb-3`}>{s.t}</h3>
           <ul className="space-y-1.5">{s.items.map((it,j)=><li key={j} className="text-xs text-zinc-500 flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0"/>{it}</li>)}</ul>
@@ -1190,7 +1291,7 @@ function ChatView(){
   return <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 relative z-10 flex flex-col" style={{height:'calc(100vh - 80px)'}}>
     <div className="mb-4 anim-fade-up">
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/20">
           <Ic name="sparkles" size={24} className="text-white"/>
         </div>
         <div><h2 className="text-xl font-display font-bold text-white">AI Clinical Assistant</h2><p className="text-xs text-zinc-500">Conversational clinical Q&A{meta?<span className="ml-2 text-zinc-600">· {providerLabel} · {meta.latency}ms · {meta.tokens} tokens</span>:null}</p></div>
@@ -1225,12 +1326,21 @@ function ChatView(){
 /* ════════════════════════════════════════════════════════
    NEEDS-KEY PROMPT  (fired when the backend returns 428)
    ════════════════════════════════════════════════════════ */
-function NeedsKeyModal({state,onClose,onSaved}){
+const KEY_LINKS={GROQ_API_KEY:{name:'Groq',url:'https://console.groq.com/keys'},OPENAI_API_KEY:{name:'OpenAI',url:'https://platform.openai.com/api-keys'}};
+function NeedsKeyModal({state,onClose,onSaved,onOpenSettings}){
   const t=useToast();
   const[val,setVal]=useState('');
   const[saving,setSaving]=useState(false);
   useEffect(()=>{setVal('')},[state]);
   if(!state||!state.show)return null;
+  const reason=state.reason||'missing';
+  const link=KEY_LINKS[state.keyRef]||null;
+  const title={missing:'API key needed',rate_limit:'Rate limit reached',invalid:'API key rejected'}[reason]||'API key needed';
+  const blurb={
+    missing:<>Engine <span className="text-zinc-300 font-semibold">{state.profile}</span> needs a <code className="text-zinc-300">{state.keyRef}</code> to run.</>,
+    rate_limit:<>The current <code className="text-zinc-300">{state.keyRef}</code> hit its rate limit. Add your own key to keep going.</>,
+    invalid:<>The <code className="text-zinc-300">{state.keyRef}</code> was rejected (expired or invalid). Enter a valid key.</>,
+  }[reason];
   const save=async()=>{
     if(!val.trim())return;
     setSaving(true);
@@ -1246,15 +1356,18 @@ function NeedsKeyModal({state,onClose,onSaved}){
       <div className="flex items-center justify-between px-6 pt-5 pb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center"><Ic name="keyRound" size={20} className="text-amber-400"/></div>
-          <div><h3 className="text-lg font-display font-bold text-white">API key needed</h3><p className="text-[11px] text-zinc-500">Engine <span className="text-zinc-400 font-semibold">{state.profile}</span> requires <code className="text-zinc-400">{state.keyRef}</code></p></div>
+          <div><h3 className="text-lg font-display font-bold text-white">{title}</h3><p className="text-[11px] text-zinc-500">{blurb}</p></div>
         </div>
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition"><Ic name="x" size={18}/></button>
       </div>
       <div className="px-6 py-4">
-        <input type="password" value={val} onChange={e=>setVal(e.target.value)} autoFocus placeholder="Paste key…"
+        <input type="password" value={val} onChange={e=>setVal(e.target.value)} autoFocus placeholder={`Paste ${link?link.name+' ':''}key…`}
           onKeyDown={e=>{if(e.key==='Enter')save()}}
           className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-brand-500 outline-none transition"/>
-        <p className="text-[10px] text-zinc-600 mt-2">Stored in memory only (cleared on restart). To make it permanent, hardcode it in <code className="text-zinc-500">config/secrets.local.py</code> or your <code className="text-zinc-500">.env</code>.</p>
+        {link&&<a href={link.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-2.5 text-[12px] text-brand-400 hover:text-brand-300 transition">
+          <Ic name="extLink" size={12}/>Get a free {link.name} API key
+        </a>}
+        <p className="text-[10px] text-zinc-600 mt-2.5">Prefer OpenAI, a local model, or per-agent routing? <button onClick={()=>{onClose();onOpenSettings&&onOpenSettings();}} className="text-zinc-400 hover:text-brand-400 underline underline-offset-2">Open Gateway settings</button>. Keys are stored in memory only (cleared on restart); hardcode in <code className="text-zinc-500">.env</code> to persist.</p>
       </div>
       <div className="px-6 pb-5 flex gap-3">
         <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-400 hover:text-white transition">Cancel</button>
@@ -1379,8 +1492,13 @@ function SettingsView(){
   const t=useToast();
   const[cfg,setCfg]=useState(null);
   const[tab,setTab]=useState('engines');
+  const[demoOn,setDemoOn]=useState(false);
+  const[demoUnlocked,setDemoUnlocked]=useState(false);
+  const tapRef=useRef(0);
   const load=useCallback(()=>{fetch(`${API}/api/config/models`).then(r=>r.json()).then(setCfg).catch(()=>t('Failed to load config','error'))},[t]);
-  useEffect(()=>{load()},[load]);
+  useEffect(()=>{load();fetch(`${API}/api/config-status`).then(r=>r.json()).then(d=>{if(d.demo){setDemoOn(true);setDemoUnlocked(true)}}).catch(()=>{})},[load]);
+  const toggleDemo=async(v)=>{try{const r=await fetch(`${API}/api/config/demo`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:v})});const d=await r.json();setDemoOn(!!d.enabled);t(v?'Presentation mode on — sample run active':'Presentation mode off','info')}catch(e){t(e.message,'error')}};
+  const titleTap=()=>{tapRef.current++;if(tapRef.current>=5&&!demoUnlocked){setDemoUnlocked(true);setTab('advanced');t('Presentation mode unlocked','success')}};
   if(!cfg)return <div className="max-w-5xl mx-auto px-6 py-16 text-center text-zinc-500"><span className="spinner"/> Loading settings…</div>;
 
   const profileIds=Object.keys(cfg.profiles);
@@ -1397,8 +1515,8 @@ function SettingsView(){
   const TABS=[['engines','Engines','cpu'],['routing','Routing','share'],['debate','Debate','scale'],['advanced','Advanced','settings']];
   return <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 anim-fade-up">
     <div className="flex items-center gap-3 mb-5">
-      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center"><Ic name="settings" size={22} className="text-white"/></div>
-      <div><h2 className="text-xl font-display font-bold text-white">Settings</h2><p className="text-xs text-zinc-500">Configure engines, per-agent routing, and debate — any model, any endpoint, any key.</p></div>
+      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center"><Ic name="activity" size={22} className="text-white"/></div>
+      <div><h2 onClick={titleTap} className="text-xl font-display font-bold text-white select-none">Settings</h2><p className="text-xs text-zinc-500">Configure engines, per-agent routing, and debate — any model, any endpoint, any key.</p></div>
     </div>
     <div className="flex gap-1 mb-5 border-b border-zinc-800">
       {TABS.map(([id,label,icon])=><button key={id} onClick={()=>setTab(id)} className={`flex items-center gap-2 px-3 py-2 text-[13px] font-medium border-b-2 -mb-px transition ${tab===id?'border-brand-500 text-white':'border-transparent text-zinc-500 hover:text-zinc-300'}`}><Ic name={icon} size={14}/>{label}</button>)}
@@ -1407,6 +1525,7 @@ function SettingsView(){
     {tab==='engines'&&<div className="space-y-3">
       <div className="flex justify-between items-center"><p className="text-[12px] text-zinc-500">Each engine is one model on one provider. MedGemma via local Ollama needs no key.</p><button onClick={addEngine} className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[12px] text-zinc-300 hover:text-white transition flex items-center gap-1.5"><Ic name="sparkles" size={13}/>Add engine</button></div>
       <div className="grid md:grid-cols-2 gap-3">{profileIds.map(id=><EngineCard key={id} prof={cfg.profiles[id]} profiles={cfg.profiles} onChanged={load}/>)}</div>
+      <OllamaSetupCard/>
     </div>}
 
     {tab==='routing'&&<div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -1436,7 +1555,36 @@ function SettingsView(){
       <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.observability.langfuse} onChange={e=>saveObs({langfuse:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Mirror traces to Langfuse (requires Langfuse env keys)</span></label>
       <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={cfg.observability.langsmith} onChange={e=>saveObs({langsmith:e.target.checked})} className="accent-brand-500 w-4 h-4"/><span className="text-[13px] text-zinc-300">Enable LangSmith tracing (requires LANGSMITH_API_KEY)</span></label>
       <div className="pt-2 border-t border-zinc-800"><p className="text-[10px] text-zinc-600 leading-relaxed">Tip: to hardcode keys so you’re never prompted, copy <code className="text-zinc-500">config/secrets.local.example.py</code> → <code className="text-zinc-500">config/secrets.local.py</code> and fill in <code className="text-zinc-500">HARDCODED_KEYS</code>.</p></div>
+      {demoUnlocked&&<div className="pt-3 border-t border-zinc-800">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" checked={demoOn} onChange={e=>toggleDemo(e.target.checked)} className="accent-brand-500 w-4 h-4 mt-0.5"/>
+          <span><span className="text-[13px] text-zinc-200 font-medium">Presentation mode</span>
+          <span className="block text-[11px] text-zinc-500 mt-0.5">Runs a fast, self-contained sample case across Analysis, Chat and Observability for demos — ideal when you don't have keys or a local model handy.</span></span>
+        </label>
+      </div>}
     </div>}
+  </div>;
+}
+
+/* Local MedGemma setup helper — shown in Engines so users can enable the local model. */
+function OllamaSetupCard(){
+  const[copied,setCopied]=useState('');
+  const copy=(txt,id)=>{navigator.clipboard.writeText(txt);setCopied(id);setTimeout(()=>setCopied(''),1200)};
+  const cmd='ollama pull medgemma1.5';
+  return <div className="rounded-xl border border-brand-500/20 bg-brand-500/[.04] p-4 mt-2">
+    <div className="flex items-center gap-2.5 mb-2">
+      <div className="w-8 h-8 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center"><Ic name="cpu" size={16} className="text-brand-400"/></div>
+      <div><p className="text-[13px] font-semibold text-white leading-none">Run MedGemma 1.5 locally (optional)</p><p className="text-[11px] text-zinc-500 mt-1">The Clinical agent & Chat prefer local <code className="text-zinc-400">medgemma1.5</code>; if it isn't installed they fall back to Cloud Fast automatically.</p></div>
+    </div>
+    <ol className="text-[12px] text-zinc-400 space-y-1.5 mt-3 list-decimal list-inside">
+      <li>Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noopener" className="text-brand-400 hover:text-brand-300">ollama.com/download</a>.</li>
+      <li>Pull the model:</li>
+    </ol>
+    <div className="flex items-center gap-2 mt-2">
+      <code className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-lg px-3 py-2 text-[12px] text-emerald-300 font-mono">{cmd}</code>
+      <button onClick={()=>copy(cmd,'c')} className="px-2.5 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition">{copied==='c'?<Ic name="check" size={14} className="text-emerald-400"/>:<Ic name="copy" size={14}/>}</button>
+    </div>
+    <a href="https://ollama.com/library/medgemma1.5" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-3 text-[12px] text-brand-400 hover:text-brand-300 transition"><Ic name="extLink" size={12}/>View medgemma1.5 on the Ollama library</a>
   </div>;
 }
 
@@ -1524,20 +1672,52 @@ function ObservabilityView(){
     </div>}
 
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Recent calls ({traces.length})</div>
+      <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Recent calls ({traces.length})</div>
+      <div className="text-[10px] text-zinc-600 mb-3">Click any call to inspect the exact prompt sent, the model's response, and any retrieved evidence.</div>
       {traces.length===0?<div className="text-[12px] text-zinc-600">No calls recorded yet. Run an analysis or chat to populate this.</div>:
       <div className="overflow-x-auto"><div className="min-w-[720px] space-y-1">
-        <div className="grid grid-cols-[70px_90px_1fr_60px_70px_60px] gap-2 text-[10px] text-zinc-600 uppercase font-semibold pb-1 border-b border-zinc-800"><span>Agent</span><span>Engine</span><span>Model</span><span className="text-right">Round</span><span className="text-right">ms</span><span className="text-right">Status</span></div>
-        {[...traces].reverse().map(tr=><div key={tr.id} className="grid grid-cols-[70px_90px_1fr_60px_70px_60px] gap-2 text-[11px] items-center py-0.5">
-          <span className="text-zinc-400 truncate">{tr.role}</span>
-          <span className="text-zinc-500 truncate">{tr.provider}</span>
-          <span className="text-zinc-300 truncate font-mono">{tr.model}</span>
-          <span className="text-right text-zinc-500">{tr.debate_round??'—'}</span>
-          <span className="text-right text-zinc-400">{tr.latency_ms||'—'}</span>
-          <span className="text-right">{tr.success?<span className="text-emerald-400">✓</span>:<span className="text-rose-400" title={tr.error||''}>✕ {(tr.error||'').slice(0,14)}</span>}</span>
-        </div>)}
+        <div className="grid grid-cols-[16px_80px_96px_1fr_54px_64px_54px] gap-2 text-[10px] text-zinc-600 uppercase font-semibold pb-1 border-b border-zinc-800"><span/><span>Agent</span><span>Engine</span><span>Model</span><span className="text-right">Round</span><span className="text-right">ms</span><span className="text-right">Status</span></div>
+        {[...traces].reverse().map(tr=><TraceRow key={tr.id} tr={tr}/>)}
       </div></div>}
     </div>
+  </div>;
+}
+
+function TraceRow({tr}){
+  const[open,setOpen]=useState(false);
+  let msgs=[]; try{msgs=JSON.parse(tr.request_json||'[]')}catch{}
+  let meta=null; try{meta=tr.meta_json?JSON.parse(tr.meta_json):null}catch{}
+  const isPubmed=tr.provider==='pubmed';
+  const hasDetail=msgs.length>0||tr.response_text||meta;
+  return <div className="border-b border-zinc-800/40 last:border-0">
+    <div onClick={()=>hasDetail&&setOpen(!open)} className={`grid grid-cols-[16px_80px_96px_1fr_54px_64px_54px] gap-2 text-[11px] items-center py-1.5 rounded ${hasDetail?'cursor-pointer hover:bg-zinc-800/40':''}`}>
+      <span className="text-zinc-600">{hasDetail?<Ic name="chevRight" size={12} className={`transition-transform ${open?'rotate-90':''}`}/>:null}</span>
+      <span className="text-zinc-300 truncate font-medium">{tr.role}{isPubmed?' ▸ pubmed':''}</span>
+      <span className={`truncate ${isPubmed?'text-teal-400':'text-zinc-500'}`}>{tr.provider}</span>
+      <span className="text-zinc-300 truncate font-mono">{tr.model}</span>
+      <span className="text-right text-zinc-500">{tr.debate_round??'—'}</span>
+      <span className="text-right text-zinc-400">{tr.latency_ms||'—'}</span>
+      <span className="text-right">{tr.success?<span className="text-emerald-400">✓</span>:<span className="text-rose-400" title={tr.error||''}>✕</span>}</span>
+    </div>
+    {open&&<div className="pb-3 pl-6 pr-2 space-y-2.5 anim-fade-up">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-zinc-500">
+        <span>Tokens in/out: <span className="text-zinc-300 font-mono">{tr.tokens_in}/{tr.tokens_out}</span></span>
+        <span>Total: <span className="text-zinc-300 font-mono">{tr.tokens_total}</span></span>
+        {tr.request_id&&<span>Request: <span className="text-zinc-300 font-mono">{tr.request_id}</span></span>}
+        {tr.error&&<span className="text-rose-400">Error: {tr.error}</span>}
+      </div>
+      {meta&&<div className="text-[11px] text-teal-300 bg-teal-500/[.06] border border-teal-500/20 rounded-lg px-3 py-2">
+        {meta.source||'Evidence'}{meta.hits!=null?` · ${meta.hits} hits`:''}
+      </div>}
+      {msgs.map((m,i)=><div key={i}>
+        <div className="text-[9px] uppercase tracking-wider text-zinc-600 mb-1">{isPubmed?'Query':m.role}</div>
+        <pre className="text-[11px] text-zinc-300 bg-zinc-950/60 border border-zinc-800 rounded-lg px-3 py-2 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">{m.content}</pre>
+      </div>)}
+      {tr.response_text&&<div>
+        <div className="text-[9px] uppercase tracking-wider text-emerald-600 mb-1">{isPubmed?'Results':'Response'}</div>
+        <pre className="text-[11px] text-emerald-200/90 bg-emerald-500/[.05] border border-emerald-500/15 rounded-lg px-3 py-2 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">{tr.response_text}</pre>
+      </div>}
+    </div>}
   </div>;
 }
 
@@ -1558,7 +1738,7 @@ function App(){
 
   // Wire the global needs-key prompt so any cpFetch 428 opens the modal.
   useEffect(()=>{
-    _cpPromptKey=(keyRef,profile)=>setNeedKey({show:true,keyRef,profile});
+    _cpPromptKey=(keyRef,profile,reason)=>setNeedKey({show:true,keyRef,profile,reason});
     return()=>{_cpPromptKey=null};
   },[]);
 
@@ -1576,7 +1756,7 @@ function App(){
     <SessionProvider>
     <div className="min-h-screen flex flex-col relative">
       <Navbar view={view} setView={setView} online={online} onSettingsClick={()=>setView('settings')} activeProvider={activeProvider}/>
-      <NeedsKeyModal state={needKey} onClose={()=>setNeedKey(null)} onSaved={fetchConfigStatus}/>
+      <NeedsKeyModal state={needKey} onClose={()=>setNeedKey(null)} onSaved={fetchConfigStatus} onOpenSettings={()=>setView('settings')}/>
       <main className="flex-1 relative z-10">
         {view==='analysis'&&<AnalysisView/>}
         {view==='emergency'&&<EmergencyView/>}

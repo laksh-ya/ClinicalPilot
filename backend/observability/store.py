@@ -11,6 +11,7 @@ Recording is fire-and-forget: a store failure must never break a clinical call.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -22,6 +23,18 @@ from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _trim_messages(messages: Optional[list]) -> Optional[str]:
+    """Serialize request messages (system+user) to JSON, trimming each to keep traces light."""
+    if not messages:
+        return None
+    try:
+        trimmed = [{"role": m.get("role", ""), "content": (m.get("content") or "")[:4000]}
+                   for m in messages]
+        return json.dumps(trimmed)[:9000]
+    except Exception:
+        return None
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "observability.db"
@@ -46,10 +59,17 @@ def _init_db() -> None:
                 profile TEXT, provider TEXT, model TEXT, base_url TEXT,
                 debate_round INTEGER, tokens_in INTEGER, tokens_out INTEGER,
                 tokens_total INTEGER, latency_ms INTEGER, cost_usd REAL,
-                success INTEGER, error TEXT, fallback_index INTEGER
+                success INTEGER, error TEXT, fallback_index INTEGER,
+                request_json TEXT, response_text TEXT, meta_json TEXT
             )
             """
         )
+        # Migrate older DBs that predate the payload columns.
+        for col, decl in (("request_json", "TEXT"), ("response_text", "TEXT"), ("meta_json", "TEXT")):
+            try:
+                conn.execute(f"ALTER TABLE traces ADD COLUMN {col} {decl}")
+            except Exception:
+                pass  # column already exists
         conn.commit()
         conn.close()
         _db_ready = True
@@ -78,6 +98,9 @@ def record_trace(
     error: Optional[str] = None,
     fallback_index: int = 0,
     persist: bool = True,
+    request_messages: Optional[list] = None,
+    response_text: Optional[str] = None,
+    meta: Optional[dict] = None,
 ) -> dict:
     """Record a single LLM attempt. Returns the trace dict (best-effort)."""
     trace = {
@@ -98,6 +121,9 @@ def record_trace(
         "success": bool(success),
         "error": (error or "")[:500] or None,
         "fallback_index": fallback_index,
+        "request_json": _trim_messages(request_messages),
+        "response_text": (response_text or "")[:8000] or None,
+        "meta_json": (json.dumps(meta)[:6000] if meta else None),
     }
     try:
         with _lock:
@@ -117,10 +143,14 @@ def _persist(trace: dict) -> None:
             return
         conn = sqlite3.connect(str(DB_PATH))
         conn.execute(
-            """INSERT OR REPLACE INTO traces VALUES
+            """INSERT OR REPLACE INTO traces
+               (id,ts,request_id,role,profile,provider,model,base_url,
+                debate_round,tokens_in,tokens_out,tokens_total,latency_ms,
+                cost_usd,success,error,fallback_index,request_json,response_text,meta_json)
+               VALUES
                (:id,:ts,:request_id,:role,:profile,:provider,:model,:base_url,
                 :debate_round,:tokens_in,:tokens_out,:tokens_total,:latency_ms,
-                :cost_usd,:success,:error,:fallback_index)""",
+                :cost_usd,:success,:error,:fallback_index,:request_json,:response_text,:meta_json)""",
             {**trace, "success": 1 if trace["success"] else 0},
         )
         conn.commit()

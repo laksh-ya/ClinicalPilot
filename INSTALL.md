@@ -230,17 +230,18 @@ ollama serve
 ### Pull MedGemma Model
 
 ```bash
-# Pull whichever MedGemma tag your Ollama registry provides, e.g.:
-ollama pull medgemma        # or medgemma:4b / medgemma:27b, etc.
+# Pull the default MedGemma model:
+ollama pull medgemma1.5     # https://ollama.com/library/medgemma1.5
 
 # Verify what you have:
 ollama list
 ```
 
-> **Important:** the default engine's model name is `medgemma` (see `config/models.json`).
-> If your pulled tag differs (e.g. `medgemma:27b`), set it to match in
-> **Settings → Engines → MedGemma (Local) → Model** (or use the **discover** button to pick
-> from installed models). No restart needed.
+> **Important:** the default local engine's model name is `medgemma1.5` (see `config/models.json`),
+> and the **Clinical agent + Chat** route to it first (falling back to Cloud Fast if it isn't
+> running). If your pulled tag differs, set it to match in **Settings → Engines → MedGemma (Local)
+> → Model** (or use the **discover** button to pick from installed models). No restart needed.
+> The Engines tab also has a one-click **"Run MedGemma 1.5 locally"** setup card.
 
 MedGemma via Ollama is the **default engine for every agent and chat** — no key required.
 If Ollama is unreachable, each role automatically falls back to its configured cloud engine.
@@ -298,7 +299,7 @@ work the same way. If a key is **not** hardcoded, the app returns a prompt and y
 in the UI (stored in memory only, cleared on restart).
 
 ### Example: MedGemma everywhere, cloud only as fallback
-1. Ollama running with `ollama pull medgemma` (default engine).
+1. Ollama running with `ollama pull medgemma1.5` (default local engine for Clinical + Chat).
 2. Settings → Engines → **Cloud Fast** → set the key (or hardcode `GROQ_API_KEY`).
 3. Done — local-first, with an automatic cloud fallback when Ollama is down or you're online-only.
 

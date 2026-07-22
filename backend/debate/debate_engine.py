@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Awaitable, Callable, Optional
 
 from backend.llm.registry import resolve_role
 from backend.agents.llm_client import set_call_context
@@ -27,14 +28,29 @@ from backend.models.agents import (
 logger = logging.getLogger(__name__)
 
 
+EventCb = Optional[Callable[[dict], Awaitable[None]]]
+
+
+async def _emit(on_event: EventCb, **evt) -> None:
+    """Fire a progress event to the caller (websocket). Never breaks the debate."""
+    if on_event is None:
+        return
+    try:
+        await on_event(evt)
+    except Exception:
+        pass
+
+
 async def run_debate(
     patient: PatientContext,
     max_rounds: int = 1,
+    on_event: EventCb = None,
 ) -> DebateState:
     """
     Run the full multi-agent debate.
-    
-    Returns: DebateState with all round outputs and consensus info.
+
+    `on_event(evt)` (optional) receives structured progress dicts so a UI can show
+    exactly which agent is working in which round. Returns DebateState.
     """
     state = DebateState()
 
@@ -42,17 +58,15 @@ async def run_debate(
         state.round_number = round_num
         set_call_context(debate_round=round_num)
         logger.info(f"Debate Round {round_num}/{max_rounds}")
+        await _emit(on_event, type="round_start", round=round_num, max_rounds=max_rounds)
 
         if round_num == 1:
-            # ── Round 1: Independent generation (parallel) ──
-            clinical, literature, safety = await _round_1(patient)
+            clinical, literature, safety = await _round_1(patient, on_event, round_num)
         else:
-            # ── Round 2+: Revision based on critique ──
             last_critic = state.critic_outputs[-1] if state.critic_outputs else None
             critique_text = _format_critique(last_critic) if last_critic else ""
-
             clinical, literature, safety = await _revision_round(
-                patient, critique_text,
+                patient, critique_text, on_event, round_num,
                 prev_clinical=state.clinical_outputs[-1] if state.clinical_outputs else None,
             )
 
@@ -61,27 +75,26 @@ async def run_debate(
         state.safety_outputs.append(safety)
 
         # ── Critic Phase ──
+        from backend.agents.critic import run_critic_agent
+        await _emit(on_event, type="agent", agent="critic", round=round_num, status="start")
+        critic = await run_critic_agent(patient, clinical, literature, safety)
+        state.critic_outputs.append(critic)
+        await _emit(on_event, type="agent", agent="critic", round=round_num, status="done",
+                    consensus=bool(critic.consensus_reached))
+
         if round_num < max_rounds:
-            from backend.agents.critic import run_critic_agent
-
-            critic = await run_critic_agent(patient, clinical, literature, safety)
-            state.critic_outputs.append(critic)
-
             if critic.consensus_reached:
                 logger.info(f"Consensus reached after round {round_num}")
                 state.final_consensus = True
+                await _emit(on_event, type="round_end", round=round_num, consensus=True)
                 break
         else:
-            # Final round — check consensus one more time
-            from backend.agents.critic import run_critic_agent
-
-            critic = await run_critic_agent(patient, clinical, literature, safety)
-            state.critic_outputs.append(critic)
             state.final_consensus = critic.consensus_reached
-
             if not critic.consensus_reached:
                 state.flagged_for_human = True
                 logger.warning("No consensus after max rounds — flagging for human review")
+        await _emit(on_event, type="round_end", round=round_num,
+                    consensus=bool(critic.consensus_reached))
 
     return state
 
@@ -101,8 +114,18 @@ def _should_serialize() -> bool:
 _GROQ_INTER_CALL_DELAY = 2.0
 
 
+async def _run_agent(on_event: EventCb, agent: str, round_num: int, coro):
+    """Emit start/done around an agent coroutine."""
+    await _emit(on_event, type="agent", agent=agent, round=round_num, status="start")
+    out = await coro
+    await _emit(on_event, type="agent", agent=agent, round=round_num, status="done")
+    return out
+
+
 async def _round_1(
     patient: PatientContext,
+    on_event: EventCb = None,
+    round_num: int = 1,
 ) -> tuple[ClinicalAgentOutput, LiteratureAgentOutput, SafetyAgentOutput]:
     """Round 1: All agents generate (parallel when possible, sequential for Groq)."""
     from backend.agents.clinical import run_clinical_agent
@@ -110,20 +133,25 @@ async def _round_1(
     from backend.agents.safety import run_safety_agent
 
     # Clinical runs first (literature needs its output)
-    clinical = await run_clinical_agent(patient)
+    clinical = await _run_agent(on_event, "clinical", round_num, run_clinical_agent(patient))
 
     if _should_serialize():
         # Sequential execution to stay within Groq free-tier rate limits
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
-        literature = await run_literature_agent(patient, clinical_output=clinical)
+        literature = await _run_agent(on_event, "literature", round_num,
+                                      run_literature_agent(patient, clinical_output=clinical))
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
-        safety = await run_safety_agent(patient, proposed_plan=clinical.soap_draft)
+        safety = await _run_agent(on_event, "safety", round_num,
+                                  run_safety_agent(patient, proposed_plan=clinical.soap_draft))
     else:
-        # Parallel execution for OpenAI / Ollama
+        await _emit(on_event, type="agent", agent="literature", round=round_num, status="start")
+        await _emit(on_event, type="agent", agent="safety", round=round_num, status="start")
         literature, safety = await asyncio.gather(
             run_literature_agent(patient, clinical_output=clinical),
             run_safety_agent(patient, proposed_plan=clinical.soap_draft),
         )
+        await _emit(on_event, type="agent", agent="literature", round=round_num, status="done")
+        await _emit(on_event, type="agent", agent="safety", round=round_num, status="done")
 
     return clinical, literature, safety
 
@@ -131,6 +159,8 @@ async def _round_1(
 async def _revision_round(
     patient: PatientContext,
     critique_text: str,
+    on_event: EventCb = None,
+    round_num: int = 2,
     prev_clinical: ClinicalAgentOutput | None = None,
 ) -> tuple[ClinicalAgentOutput, LiteratureAgentOutput, SafetyAgentOutput]:
     """Revision round: agents incorporate critique."""
@@ -138,29 +168,25 @@ async def _revision_round(
     from backend.agents.literature import run_literature_agent
     from backend.agents.safety import run_safety_agent
 
-    # Clinical revises first
-    clinical = await run_clinical_agent(patient, critique=critique_text)
+    clinical = await _run_agent(on_event, "clinical", round_num,
+                                run_clinical_agent(patient, critique=critique_text))
 
     if _should_serialize():
-        # Sequential execution to stay within Groq free-tier rate limits
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
-        literature = await run_literature_agent(
-            patient, clinical_output=clinical, critique=critique_text
-        )
+        literature = await _run_agent(on_event, "literature", round_num,
+                                      run_literature_agent(patient, clinical_output=clinical, critique=critique_text))
         await asyncio.sleep(_GROQ_INTER_CALL_DELAY)
-        safety = await run_safety_agent(
-            patient, proposed_plan=clinical.soap_draft, critique=critique_text
-        )
+        safety = await _run_agent(on_event, "safety", round_num,
+                                  run_safety_agent(patient, proposed_plan=clinical.soap_draft, critique=critique_text))
     else:
-        # Parallel execution for OpenAI / Ollama
+        await _emit(on_event, type="agent", agent="literature", round=round_num, status="start")
+        await _emit(on_event, type="agent", agent="safety", round=round_num, status="start")
         literature, safety = await asyncio.gather(
-            run_literature_agent(
-                patient, clinical_output=clinical, critique=critique_text
-            ),
-            run_safety_agent(
-                patient, proposed_plan=clinical.soap_draft, critique=critique_text
-            ),
+            run_literature_agent(patient, clinical_output=clinical, critique=critique_text),
+            run_safety_agent(patient, proposed_plan=clinical.soap_draft, critique=critique_text),
         )
+        await _emit(on_event, type="agent", agent="literature", round=round_num, status="done")
+        await _emit(on_event, type="agent", agent="safety", round=round_num, status="done")
 
     return clinical, literature, safety
 

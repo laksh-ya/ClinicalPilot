@@ -137,11 +137,14 @@ clinicalpilot/
 All model calls go through a **role → engine registry** (`config/models.json`), resolved by
 `backend/llm/`. Every agent + chat is a *role* mapping to a **primary engine + fallbacks**;
 each engine is any provider/model/base_url/key (Ollama, OpenAI, Groq, Azure, Anthropic, or
-any OpenAI-compatible endpoint) via **LiteLLM**. **Shipped default: everything → `cloud-fast`
-(Groq), no fallback** — so a fresh/hosted install works with just `GROQ_API_KEY` and no local-Ollama
-wait. A `medgemma-local` (Ollama) engine and a `cloud-quality` (OpenAI) engine are pre-defined; point
-any role at them in Settings. Keys resolve **hardcoded → runtime(UI) → ask** (428 `needs_key`).
-Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_SYSTEM_PLAN.md`.
+any OpenAI-compatible endpoint) via **LiteLLM**. **Shipped default: `cloud-fast` (Groq) for every
+role, except the Clinical agent and Chat, which prefer local `medgemma-local` (MedGemma 1.5 via
+Ollama) with `cloud-fast` as an automatic fallback.** On a deployed host (`DEPLOYED`/`RENDER` env set)
+`resolve_role()` skips the Ollama primary so those roles use Cloud Fast too — no dead-connection wait.
+A `cloud-quality` (OpenAI GPT-4o) engine is also pre-defined. Keys resolve **hardcoded → runtime(UI)
+→ ask** (428 `needs_key`), and a keyed engine that hits a **rate limit (429)** or is **rejected
+(401/expired)** also raises `needs_key` so the UI can prompt for a fresh key. Configure live in the
+**Settings** tab or edit `config/models.json`. See `MODEL_SYSTEM_PLAN.md`.
 
 ### AI Chat Service
 - Endpoint: `POST /api/chat`
@@ -243,7 +246,8 @@ to spare. See `INSTALL.md` for the full breakdown and Render deployment guidance
 | `OPENAI_FAST_MODEL` | No | Default: `gpt-4o-mini` (for Literature agent) |
 | `USE_LOCAL_LLM` | No | `true` to use Ollama/MedGemma instead of OpenAI |
 | `OLLAMA_BASE_URL` | No | Default: `http://localhost:11434` |
-| `OLLAMA_MODEL` | No | Default: `medgemma2:9b` |
+| `OLLAMA_MODEL` | No | Default: `medgemma1.5` |
+| `DEPLOYED` | No | `true` on a hosted deploy — routing skips the local Ollama primary so Clinical/Chat use Cloud Fast (Render also auto-sets `RENDER`). |
 | `NCBI_API_KEY` | No | PubMed E-utilities API key (higher rate limits) |
 | `NCBI_EMAIL` | Yes* | Required by NCBI for E-utilities |
 | `LANGSMITH_API_KEY` | No | LangSmith tracing key |

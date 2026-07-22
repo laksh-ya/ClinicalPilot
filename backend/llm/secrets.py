@@ -42,12 +42,13 @@ _hardcoded_urls: dict[str, str] | None = None
 
 
 class NeedsKey(Exception):
-    """Raised when a required secret is not hardcoded and not provided at runtime."""
+    """Raised when a required secret is missing, rate-limited, or rejected (expired/invalid)."""
 
-    def __init__(self, key_ref: str, profile_id: str = ""):
+    def __init__(self, key_ref: str, profile_id: str = "", reason: str = "missing"):
         self.key_ref = key_ref
         self.profile_id = profile_id
-        super().__init__(f"Missing API key '{key_ref}' for profile '{profile_id}'")
+        self.reason = reason  # "missing" | "rate_limit" | "invalid"
+        super().__init__(f"API key '{key_ref}' issue ({reason}) for profile '{profile_id}'")
 
 
 def _load_hardcoded() -> None:

@@ -24,6 +24,10 @@ services:
         value: "en_core_web_sm"
       - key: LOG_LEVEL
         value: "INFO"
+      # Deployed hosts have no local Ollama — this makes routing skip the MedGemma
+      # (Ollama) primary so Clinical/Chat use Cloud Fast with no dead-connection wait.
+      - key: DEPLOYED
+        value: "true"
       # Your Groq key — set the value in the Render dashboard, not in git.
       - key: GROQ_API_KEY
         sync: false

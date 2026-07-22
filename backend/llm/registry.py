@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Optional
@@ -78,7 +79,7 @@ def _default_config() -> ModelsConfig:
     profiles = {
         "medgemma-local": Profile(
             id="medgemma-local", label="MedGemma (Local)", provider="ollama",
-            model="medgemma", base_url="http://localhost:11434", api_key_ref=None,
+            model="medgemma1.5", base_url="http://localhost:11434", api_key_ref=None,
             # json_mode=False: MedGemma 1.5 is a reasoning model; JSON grammar stalls it.
             # We still parse JSON out of its reply — no grammar constraint needed.
             params=ProfileParams(temperature=0.2, max_tokens=4096, json_mode=False),
@@ -94,14 +95,24 @@ def _default_config() -> ModelsConfig:
             params=ProfileParams(temperature=0.2, max_tokens=4096, json_mode=True),
         ),
     }
-    # Groq-first default so a fresh/hosted install works with just GROQ_API_KEY set,
-    # with no local-Ollama connection wait. Users can switch any role to MedGemma
-    # (or add fallbacks) in Settings → Routing.
-    roles = {
-        r: RoleRoute(primary="cloud-fast", fallbacks=[])
-        for r in ROLE_NAMES
-    }
+    # Default: Cloud Fast (Groq) for everything, except the Clinical agent and Chat,
+    # which prefer local MedGemma 1.5 (with Cloud Fast as automatic fallback). On a
+    # deployed host (no local Ollama) resolve_role() skips the Ollama primary so those
+    # roles use Cloud Fast too — no connection wait. Users can re-route in Settings.
+    roles = {r: RoleRoute(primary="cloud-fast", fallbacks=[]) for r in ROLE_NAMES}
+    roles["clinical"] = RoleRoute(primary="medgemma-local", fallbacks=["cloud-fast"])
+    roles["chat"] = RoleRoute(primary="medgemma-local", fallbacks=["cloud-fast"])
     return ModelsConfig(profiles=profiles, roles=roles)
+
+
+def is_deployed() -> bool:
+    """True on a hosted deployment (Render sets RENDER=true; DEPLOYED is our own flag).
+    Deployed hosts have no local Ollama, so we skip Ollama profiles to avoid a wait."""
+    return bool(
+        os.environ.get("RENDER")
+        or os.environ.get("DEPLOYED")
+        or os.environ.get("CLINICALPILOT_CLOUD_ONLY")
+    )
 
 
 # ── Load / save ─────────────────────────────────────────────────────────────
@@ -161,6 +172,12 @@ def resolve_role(role: str) -> list[Profile]:
             seen.add(pid)
     if not profiles:  # misconfigured role — degrade to any known profile
         profiles = list(cfg.profiles.values())[:1]
+    # On a deployed host there is no local Ollama — drop Ollama profiles so the role
+    # resolves straight to its cloud engine (no dead-connection wait). Keep at least one.
+    if is_deployed():
+        cloud = [p for p in profiles if p.provider != "ollama"]
+        if cloud:
+            profiles = cloud
     return profiles
 
 
