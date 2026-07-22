@@ -25,12 +25,12 @@ The result: fewer hallucinations, more differential diagnoses, actual PubMed cit
 - **Medical error prevention** — Drug-drug interactions, drug-disease contraindications, renal/hepatic dosing alerts, pregnancy/pediatric/elderly flags (RxNorm + DrugBank with optional openFDA lookups)
 - **FHIR R4 + EHR upload** — Drop in FHIR bundles, PDFs, CSVs, or just type free-text clinical notes
 - **PHI anonymization** — Microsoft Presidio scrubs protected health information before anything hits an LLM
-- **RAG pipeline** — LanceDB vector store for medical literature retrieval and PubMed E-utilities for live citations
-- **AI Chat** — Conversational assistant with OpenAI-first and Groq fallback for quick clinical Q&A
-- **Runtime provider settings** — Enter OpenAI/Groq API keys from the UI (in-memory, no file edits required)
-- **Human-in-the-loop** — Doctor edits feed back into the debate engine for re-analysis
+- **Live citations** — PubMed E-utilities for real references (optional LanceDB RAG store available via the extras install)
+- **AI Chat** — Conversational assistant on the same configurable engines for quick clinical Q&A
+- **Configurable engines & routing** — Any provider/base-URL/key via LiteLLM; pick which model runs each agent (primary + fallbacks) in Settings. Keys resolve hardcoded → entered-in-UI → asked on demand
+- **Human-in-the-loop** — Doctor edits feed back into the debate engine for re-analysis (runs in the background, with a Stop control)
 - **Medical image classifiers** — External Streamlit apps (launched in in-app iframes) for lung disease, chest X-ray, retinopathy, and skin cancer analysis
-- **Observability** — LangSmith tracing on every agent call, token tracking, latency breakdown
+- **Observability** — Built-in dashboard: per-call counts, tokens, latency, and per-agent/per-request grouping (optional LangSmith/Langfuse export)
 - **Guardrails** — Pydantic schema validation, hallucinated medication cross-checks, differential completeness rules
 
 ---
@@ -55,6 +55,25 @@ That's it. No npm, no webpack, no Docker required. The frontend is a single HTML
 Note: analysis outputs are returned in API responses and are not persisted to a database by default.
 
 Full setup guide with platform-specific notes, optional local LLM (MedGemma via Ollama), and data downloads → [INSTALL.md](INSTALL.md)
+
+---
+
+## Dependencies (lean by default)
+
+`requirements.txt` is deliberately small so the app builds on a 512 MB free tier. Everything heavy is lazy-loaded and moved to `requirements-optional.txt` with a graceful fallback when absent:
+
+| Removed from the default install | Why it was redundant | Where it lives now |
+|---|---|---|
+| `groq` SDK | LiteLLM already talks to Groq — nothing imports the `groq` package | deleted (dead weight) |
+| `langchain*` | not imported anywhere in the codebase | `requirements-optional.txt` |
+| `sentence-transformers` | only used by the RAG CLI (`backend/rag`), not the request path — and it pulls **torch (~2 GB)**, the main cause of free-tier build OOM | `requirements-optional.txt` |
+| `lancedb` | RAG vector store, CLI-only; the literature agent uses PubMed instead | `requirements-optional.txt` |
+| `unstructured` | richer PDF parsing; `ehr_parser` falls back to PyPDF2 automatically | `requirements-optional.txt` |
+| `langsmith` | optional external tracing sink; built-in observability works without it | `requirements-optional.txt` |
+| `aiohttp`, `jinja2` | were pinned explicitly but only needed transitively — pip resolves them if a dep requires them | unpinned |
+| spaCy `en_core_web_lg` (560 MB, downloaded at runtime) | too big for the free tier and the runtime download crashed mid-request; `en_core_web_sm` (~12 MB) is installed as a wheel at build time | swapped to `en_core_web_sm` |
+
+Want the RAG store, richer PDF parsing, or LangChain/LangSmith? `pip install -r requirements-optional.txt` on a box with enough RAM. See [INSTALL.md](INSTALL.md) for the full breakdown and Render deployment notes.
 
 ---
 
@@ -100,8 +119,9 @@ clinicalpilot/
 │   ├── emergency/              # Emergency fast-path triage
 │   ├── safety_panel/           # Drug interactions, dosing alerts
 │   ├── external/               # PubMed, DrugBank, RxNorm, openFDA APIs
-│   ├── rag/                    # LanceDB vector store + embeddings
-│   ├── observability/          # LangSmith tracing
+│   ├── llm/                    # LiteLLM router, model registry, secret resolution
+│   ├── rag/                    # LanceDB vector store + embeddings (OPTIONAL — CLI only)
+│   ├── observability/          # In-app trace store (ring buffer + SQLite) + optional exporters
 │   └── guardrails/             # Hallucination checks, schema validation
 ├── frontend/
 │   └── index.html              # Full SPA — React 18 + Babel CDN (~1100 lines)
@@ -110,12 +130,15 @@ clinicalpilot/
 │   ├── sample_ehr/             # Test CSV patient data
 │   ├── drugbank/               # DrugBank open CSV data
 │   ├── few_shot_examples/      # Few-shot clinical examples
-│   └── lancedb/                # Vector store (auto-created)
+│   └── lancedb/                # Vector store (auto-created; only with the optional RAG extras)
 ├── Flowcharts/                 # Interactive architecture diagrams (HTML)
 ├── ARCHITECTURE.md
 ├── INSTALL.md
 ├── _smoke_test.sh              # End-to-end smoke tests
-├── requirements.txt
+├── requirements.txt            # Lean, free-tier-friendly runtime deps
+├── requirements-optional.txt   # Heavy extras (RAG/torch, unstructured, langchain, langsmith)
+├── render.yaml                 # Render deployment blueprint (free tier)
+├── config/models.json          # Model engines + per-role routing
 └── .env.example
 ```
 
@@ -170,15 +193,15 @@ Zero-build React 18 SPA — no Node.js, no bundler. Served straight from FastAPI
 | Layer | Tech |
 |-------|------|
 | Backend | Python 3.10+, FastAPI, uvicorn, async everywhere |
-| Agents | Local Ollama (optional) → OpenAI → Groq fallback |
-| AI Chat | OpenAI-first chat with Groq fallback |
-| Vector DB | LanceDB (embedded, serverless) |
-| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
-| PHI Safety | Microsoft Presidio + spaCy (en_core_web_lg) |
+| LLM client | **LiteLLM** — one unified client for Ollama / OpenAI / Groq / Azure / Anthropic / any OpenAI-compatible endpoint |
+| Agents | Per-role routing (primary + ordered fallbacks), configurable in Settings; ships Groq-first, MedGemma-via-Ollama optional |
+| AI Chat | Same routed engines (own `chat` role) |
+| PHI Safety | Microsoft Presidio + spaCy (`en_core_web_sm` by default; degrades to regex if absent) |
 | Drug Data | PubMed (BioPython Entrez), DrugBank, RxNorm, optional openFDA lookups |
 | Frontend | React 18 CDN + Tailwind CSS + Babel (zero build step) |
-| Observability | LangSmith tracing + token/latency tracking |
+| Observability | Built-in (in-memory ring buffer + SQLite): per-call counts, tokens, latency, per-agent/per-request grouping — optional LangSmith/Langfuse export |
 | Validation | Pydantic v2 schemas + custom guardrail rules |
+| Vector DB / Embeddings | LanceDB + sentence-transformers — **optional** (RAG ingest/query CLI only; not in the request path) |
 
 ---
 

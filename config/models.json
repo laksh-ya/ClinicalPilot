@@ -1,20 +1,6 @@
 {
   "version": 1,
   "profiles": {
-    "medgemma-local": {
-      "id": "medgemma-local",
-      "label": "MedGemma (Local)",
-      "provider": "ollama",
-      "model": "medgemma",
-      "base_url": "http://localhost:11434",
-      "api_key_ref": null,
-      "serialize": false,
-      "params": {
-        "temperature": 0.2,
-        "max_tokens": 4096,
-        "json_mode": false
-      }
-    },
     "cloud-fast": {
       "id": "cloud-fast",
       "label": "Cloud Fast",
@@ -26,7 +12,23 @@
       "params": {
         "temperature": 0.2,
         "max_tokens": 2048,
-        "json_mode": true
+        "json_mode": true,
+        "stop": null
+      }
+    },
+    "medgemma-local": {
+      "id": "medgemma-local",
+      "label": "MedGemma (Local)",
+      "provider": "ollama",
+      "model": "medgemma",
+      "base_url": "http://localhost:11434",
+      "api_key_ref": null,
+      "serialize": false,
+      "params": {
+        "temperature": 0.2,
+        "max_tokens": 4096,
+        "json_mode": false,
+        "stop": null
       }
     },
     "cloud-quality": {
@@ -40,65 +42,21 @@
       "params": {
         "temperature": 0.2,
         "max_tokens": 4096,
-        "json_mode": true
+        "json_mode": true,
+        "stop": null
       }
     }
   },
   "roles": {
-    "default": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "chat": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "clinical": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "literature": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "safety": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "critic": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "synthesizer": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "emergency": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    },
-    "med_panel": {
-      "primary": "medgemma-local",
-      "fallbacks": [
-        "cloud-fast"
-      ]
-    }
+    "default": { "primary": "cloud-fast", "fallbacks": [] },
+    "chat": { "primary": "cloud-fast", "fallbacks": [] },
+    "clinical": { "primary": "cloud-fast", "fallbacks": [] },
+    "literature": { "primary": "cloud-fast", "fallbacks": [] },
+    "safety": { "primary": "cloud-fast", "fallbacks": [] },
+    "critic": { "primary": "cloud-fast", "fallbacks": [] },
+    "synthesizer": { "primary": "cloud-fast", "fallbacks": [] },
+    "emergency": { "primary": "cloud-fast", "fallbacks": [] },
+    "med_panel": { "primary": "cloud-fast", "fallbacks": [] }
   },
   "debate": {
     "max_rounds": 3,

@@ -94,8 +94,11 @@ def _default_config() -> ModelsConfig:
             params=ProfileParams(temperature=0.2, max_tokens=4096, json_mode=True),
         ),
     }
+    # Groq-first default so a fresh/hosted install works with just GROQ_API_KEY set,
+    # with no local-Ollama connection wait. Users can switch any role to MedGemma
+    # (or add fallbacks) in Settings → Routing.
     roles = {
-        r: RoleRoute(primary="medgemma-local", fallbacks=["cloud-fast"])
+        r: RoleRoute(primary="cloud-fast", fallbacks=[])
         for r in ROLE_NAMES
     }
     return ModelsConfig(profiles=profiles, roles=roles)

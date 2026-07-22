@@ -160,6 +160,7 @@ const _i={
   workflow:<><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></>,
   wrench:<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>,
   play:<polygon points="6 3 20 12 6 21 6 3"/>,
+  square:<rect width="12" height="12" x="6" y="6" rx="2.5"/>,
   mic:<><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></>,
   copy:<><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
   edit:<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>,
@@ -336,6 +337,169 @@ const FLOW_DIAGRAM=`sequenceDiagram
 
 
 /* ════════════════════════════════════════════════════════
+   ANALYSIS ENGINE — lifted above the router so a run keeps
+   going (WebSocket + state) even when the user changes pages.
+   Only an explicit Stop (or Clear when idle) ends it.
+   ════════════════════════════════════════════════════════ */
+const AnalysisCtx=createContext(null);
+function useAnalysis(){return useContext(AnalysisCtx)}
+
+function AnalysisProvider({children}){
+  const t=useToast();
+  const[input,setInput]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[res,setRes]=useState(null);
+  const[steps,setSteps]=useState({});
+  const[agentMsgs,setAgentMsgs]=useState([]);
+  const[logs,setLogs]=useState([]);
+  const[fbBusy,setFbBusy]=useState(false); // human-feedback re-analysis in flight
+  const wsRef=useRef(null);
+  const abortRef=useRef(null);
+  const stoppedRef=useRef(false);
+  const fbAbortRef=useRef(null);
+  const fbStoppedRef=useRef(false);
+
+  const log=useCallback((src,msg)=>{const time=new Date().toLocaleTimeString('en-US',{hour12:false});setLogs(p=>[...p,{time,src,msg}])},[]);
+  const addMsg=useCallback((text,type='status')=>setAgentMsgs(p=>[...p,{text,type}]),[]);
+  const uStep=useCallback((k,v)=>setSteps(p=>({...p,[k]:v})),[]);
+  const allDone=useCallback(()=>PIPELINE_STEPS.forEach(s=>uStep(s.key,'done')),[uStep]);
+
+  const tryWS=useCallback(text=>new Promise(resolve=>{
+    const url=`${API.replace('http','ws')}/ws/analyze`;
+    let ws;try{ws=new WebSocket(url)}catch{resolve(false);return}
+    wsRef.current=ws;
+    const to=setTimeout(()=>{try{ws.close()}catch{}resolve(false)},4000);
+    ws.onopen=()=>{clearTimeout(to);ws.send(JSON.stringify({text}));log('system','WebSocket connected');addMsg('Stream opened')};
+    ws.onmessage=ev=>{try{
+      const m=JSON.parse(ev.data);
+      if(m.type==='status'){
+        const d=m.detail||m.stage||'';log('pipeline',d);addMsg(d);
+        const s=(m.stage||d).toLowerCase();
+        if(s.includes('pars')){uStep('parsing','done');uStep('agents','active')}
+        if(s.includes('agent')){uStep('parsing','done');uStep('agents','active')}
+        if(s.includes('literature')||s.includes('safety'))addMsg(d,'agent');
+        if(s.includes('debate')||s.includes('critic')){uStep('agents','done');uStep('debate','active')}
+        if(s.includes('synth')){uStep('debate','done');uStep('synthesis','active')}
+        if(s.includes('safety')&&s.includes('panel')){uStep('synthesis','done');uStep('safety_panel','active')}
+      }else if(m.type==='agent_result'){log('pipeline',`${m.agent} ✓`);addMsg(`${m.agent} completed`,'agent')}
+      else if(m.type==='complete'){allDone();setRes(m);setBusy(false);wsRef.current=null;log('system','✓ Complete');t('Analysis complete','success');resolve(true)}
+      else if(m.type==='error'){log('error',m.message||'');t(m.message||'Error','error')}
+    }catch{}};
+    ws.onerror=()=>{clearTimeout(to);resolve(false)};
+    ws.onclose=()=>{wsRef.current=null;resolve(false)};
+  }),[log,addMsg,uStep,allDone,t]);
+
+  const run=useCallback(async()=>{
+    if(busy)return;
+    if(!input.trim()){t('Enter clinical data','warning');return}
+    stoppedRef.current=false;
+    setBusy(true);setRes(null);setSteps({parsing:'active'});setLogs([]);setAgentMsgs([]);
+    log('system','Starting analysis…');addMsg('Initializing pipeline');
+    try{
+      if(await tryWS(input.trim()))return;
+      if(stoppedRef.current)return;
+      log('system','REST fallback');
+      const ctrl=new AbortController();abortRef.current=ctrl;
+      const r=await cpFetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()}),signal:ctrl.signal});
+      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`)}
+      const data=await r.json();allDone();setRes(data);log('system','✓ Complete');t('Analysis complete','success');
+    }catch(e){
+      if(stoppedRef.current||e.name==='AbortError')return;
+      log('error',e.message);t(e.message,'error');setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='error';return n});
+    }
+    finally{abortRef.current=null;if(!stoppedRef.current)setBusy(false)}
+  },[busy,input,tryWS,log,addMsg,allDone,t]);
+
+  const stop=useCallback(()=>{
+    if(!busy)return;
+    stoppedRef.current=true;
+    try{wsRef.current?.close()}catch{}
+    try{abortRef.current?.abort()}catch{}
+    wsRef.current=null;abortRef.current=null;
+    setBusy(false);
+    setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='stopped';return n});
+    log('system','■ Analysis stopped');addMsg('Stopped by user','error');t('Analysis stopped','info');
+  },[busy,log,addMsg,t]);
+
+  const clear=useCallback(()=>{
+    if(busy)return;
+    setInput('');setRes(null);setSteps({});setLogs([]);setAgentMsgs([]);
+  },[busy]);
+
+  const uploadFile=useCallback(async(file,ep)=>{
+    try{
+      let r;
+      if(ep==='/api/upload/fhir')r=await fetch(`${API}${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},body:await file.text()});
+      else{const fd=new FormData();fd.append('file',file);r=await fetch(`${API}${ep}`,{method:'POST',body:fd})}
+      if(!r.ok)throw new Error('Upload failed');
+      const d=await r.json();
+      if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`;setInput(s.trim())}
+      if(d.summary)setInput(p=>p?p+'\n\n'+d.summary:d.summary);
+      t(`Parsed ${ep.includes('fhir')?'FHIR bundle':file.name}`,'success');log('upload','File ingested');
+    }catch(e){t(e.message,'error')}
+  },[t,log]);
+
+  const loadSampleCSV=useCallback(async()=>{
+    try{
+      const csv=`patient_id,age,gender,condition,medication,dosage,lab_name,lab_value,lab_unit,allergy,vital_name,vital_value
+P003,45,male,Hypertension,Metformin,1000mg BID,Troponin I,0.82,ng/mL,,BP,160/95
+P003,45,male,Type 2 Diabetes,Lisinopril,20mg daily,WBC,11.2,K/uL,Sulfa drugs,HR,110
+P003,45,male,Hyperlipidemia,Atorvastatin,40mg daily,Glucose,245,mg/dL,Shellfish,RR,22
+P003,45,male,,Aspirin,81mg daily,Creatinine,1.1,mg/dL,,SpO2,94%
+P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
+      const blob=new Blob([csv],{type:'text/csv'});
+      const file=new File([blob],'sample_stemi.csv',{type:'text/csv'});
+      const fd=new FormData();fd.append('file',file);
+      const r=await fetch(`${API}/api/upload/ehr`,{method:'POST',body:fd});
+      if(!r.ok)throw new Error('CSV parse failed');
+      const d=await r.json();
+      if(d.summary)setInput(d.summary);
+      else if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;setInput(s.trim())}
+      t('Sample CSV loaded','success');
+    }catch(e){t(e.message,'error')}
+  },[t]);
+
+  const loadSampleFHIR=useCallback(async()=>{
+    try{
+      const r=await fetch(`${API}/api/upload/fhir`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SAMPLE_FHIR)});
+      if(!r.ok)throw new Error('FHIR parse failed');
+      const d=await r.json();
+      let s=d.summary||'';
+      if(d.patient_context){const c=d.patient_context;s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.labs?.length)s+=`Labs: ${c.labs.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.vitals?.length)s+=`Vitals: ${c.vitals.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`}
+      setInput(s.trim()||'Sample FHIR patient loaded');t('FHIR bundle loaded','success');
+    }catch(e){t(e.message,'error')}
+  },[t]);
+
+  const feedback=useCallback(async fb=>{
+    const s=res?.soap;if(!s){t('Run analysis first','warning');return false}
+    if(fbBusy)return false;
+    fbStoppedRef.current=false;setFbBusy(true);
+    log('human',`Feedback: "${fb.slice(0,50)}…"`);
+    try{
+      const ctrl=new AbortController();fbAbortRef.current=ctrl;
+      const r=await cpFetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_text:input,feedback:fb,edited_soap:JSON.stringify(s)}),signal:ctrl.signal});
+      if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Feedback failed')}
+      const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);
+      return true;
+    }catch(e){
+      if(fbStoppedRef.current||e.name==='AbortError')return false;
+      log('error',e.message);t(e.message,'error');return false;
+    }finally{fbAbortRef.current=null;if(!fbStoppedRef.current)setFbBusy(false)}
+  },[res,input,fbBusy,log,t]);
+
+  const stopFeedback=useCallback(()=>{
+    if(!fbBusy)return;
+    fbStoppedRef.current=true;
+    try{fbAbortRef.current?.abort()}catch{}
+    fbAbortRef.current=null;setFbBusy(false);
+    log('system','■ Re-analysis stopped');t('Re-analysis stopped','info');
+  },[fbBusy,log,t]);
+
+  const val={input,setInput,busy,res,steps,agentMsgs,logs,fbBusy,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback,stopFeedback};
+  return <AnalysisCtx.Provider value={val}>{children}</AnalysisCtx.Provider>;
+}
+
+/* ════════════════════════════════════════════════════════
    NAVBAR
    ════════════════════════════════════════════════════════ */
 const NAV=[
@@ -350,6 +514,12 @@ const NAV=[
 
 const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activeProvider}){
   const[open,setOpen]=useState(false);
+  const an=useAnalysis();
+  const analyzing=!!an?.busy;
+  const refining=!!an?.fbBusy;
+  const activeRun=analyzing||refining;
+  const activeLabel=analyzing?'Analyzing':'Re-analyzing';
+  const activeStop=analyzing?an?.stop:an?.stopFeedback;
   const provColor={openai:'bg-emerald-400',groq:'bg-brand-400',ollama:'bg-violet-400',none:'bg-rose-400'}[activeProvider]||'bg-zinc-500';
   return <header className="sticky top-0 z-50 border-b border-zinc-800/80" style={{background:'rgba(9,9,11,.88)',backdropFilter:'blur(16px)'}}>
     <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -374,7 +544,17 @@ const Navbar=memo(function Navbar({view,setView,online,onSettingsClick,activePro
         </button>)}
       </nav>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {activeRun&&<div onClick={()=>setView('analysis')} role="button" tabIndex={0}
+          title={`${activeLabel} — click to view progress`}
+          className={`flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-brand-500/40 bg-brand-500/10 cursor-pointer transition hover:bg-brand-500/[.18] ${view==='analysis'?'ring-1 ring-brand-500/30':''}`}>
+          <span className="spinner spinner-sm"/>
+          <span className="text-[11px] font-semibold text-brand-300 hidden sm:inline">{activeLabel}</span>
+          <button onClick={e=>{e.stopPropagation();activeStop&&activeStop()}} title={`Stop ${activeLabel.toLowerCase()}`}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-rose-300 hover:bg-rose-500/25 hover:text-rose-200 transition">
+            <Ic name="square" size={11}/>
+          </button>
+        </div>}
         <button onClick={onSettingsClick} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-zinc-700/60 hover:border-zinc-600 bg-zinc-800/40 hover:bg-zinc-800/80 transition group" title="Settings">
           <Ic name="keyRound" size={14} className="text-zinc-500 group-hover:text-brand-400 transition"/>
           <div className={`w-1.5 h-1.5 rounded-full ${provColor}`}/>
@@ -406,13 +586,13 @@ function PipelineViz({steps,msgs}){
     <div className="flex items-center justify-between gap-1 mb-4">
       {PIPELINE_STEPS.map((s,i)=>{
         const st=steps[s.key]||'pending';
-        const done=st==='done',active=st==='active',err=st==='error';
+        const done=st==='done',active=st==='active',err=st==='error',stopped=st==='stopped';
         return <React.Fragment key={s.key}>
           <div className="flex flex-col items-center gap-1.5 flex-1">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center border-2 transition-all duration-500 ${
-              done?'border-emerald-500/50 bg-emerald-500/10':active?'border-brand-500/50 bg-brand-500/10':err?'border-rose-500/50 bg-rose-500/10':'border-zinc-800 bg-zinc-900'
-            }`}>{done?<Ic name="check" size={16} className="text-emerald-400"/>:active?<span className="spinner spinner-sm"/>:err?<Ic name="x" size={14} className="text-rose-400"/>:<Ic name={s.icon} size={15} className="text-zinc-600"/>}</div>
-            <span className={`text-[10px] font-medium text-center leading-tight ${done?'text-emerald-400':active?'text-brand-400':err?'text-rose-400':'text-zinc-600'}`}>{s.label}</span>
+              done?'border-emerald-500/50 bg-emerald-500/10':active?'border-brand-500/50 bg-brand-500/10':err?'border-rose-500/50 bg-rose-500/10':stopped?'border-amber-500/50 bg-amber-500/10':'border-zinc-800 bg-zinc-900'
+            }`}>{done?<Ic name="check" size={16} className="text-emerald-400"/>:active?<span className="spinner spinner-sm"/>:err?<Ic name="x" size={14} className="text-rose-400"/>:stopped?<Ic name="square" size={13} className="text-amber-400"/>:<Ic name={s.icon} size={15} className="text-zinc-600"/>}</div>
+            <span className={`text-[10px] font-medium text-center leading-tight ${done?'text-emerald-400':active?'text-brand-400':err?'text-rose-400':stopped?'text-amber-400':'text-zinc-600'}`}>{s.label}</span>
           </div>
           {i<PIPELINE_STEPS.length-1&&<div className={`h-0.5 flex-1 mt-[-18px] rounded-full transition-all duration-700 ${done?'bg-emerald-500/30':active?'bg-brand-500/20 shimmer-bg':'bg-zinc-800'}`}/>}
         </React.Fragment>;
@@ -438,9 +618,9 @@ const SOAP_SEC=[
 ];
 
 function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
+  const{fbBusy,stopFeedback}=useAnalysis();
   const[editing,setEditing]=useState(false);
   const[fbText,setFbText]=useState('');
-  const[fbBusy,setFbBusy]=useState(false);
   const reportRef=useRef(null);
   const conf=(soap?.uncertainty||'medium').toLowerCase();
 
@@ -452,9 +632,8 @@ function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
 
   const handleFeedback=useCallback(async()=>{
     if(!fbText.trim())return;
-    setFbBusy(true);
-    await onFeedback(fbText);
-    setFbText('');setFbBusy(false);
+    const ok=await onFeedback(fbText);
+    if(ok)setFbText('');
   },[fbText,onFeedback]);
 
   if(!soap)return null;
@@ -612,13 +791,17 @@ function ClinicalReport({soap,debate,medPanel,onExport,onFeedback}){
       <div className="flex gap-3 items-start">
         <textarea value={fbText} onChange={e=>setFbText(e.target.value)} placeholder="Add clinical corrections, additional context, or disagree with findings…" rows={3}
           className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 resize-y transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10"/>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 shrink-0">
           <MicBtn onTranscript={t=>setFbText(p=>p+(p?' ':'')+t)} className="shrink-0"/>
-          <button onClick={handleFeedback} disabled={fbBusy||!fbText.trim()} className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center gap-1.5">
-            {fbBusy?<span className="spinner spinner-sm"/>:<Ic name="refresh" size={14}/>}Re-analyze
+          <button onClick={handleFeedback} disabled={fbBusy||!fbText.trim()} className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition disabled:opacity-40 flex items-center justify-center gap-1.5">
+            {fbBusy?<><span className="spinner spinner-sm"/>Re-analyzing…</>:<><Ic name="refresh" size={14}/>Re-analyze</>}
           </button>
+          {fbBusy&&<button onClick={stopFeedback} className="px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-sm font-semibold transition flex items-center justify-center gap-1.5">
+            <Ic name="square" size={13}/>Stop
+          </button>}
         </div>
       </div>
+      {fbBusy&&<p className="mt-3 text-[11px] text-violet-300/80 flex items-center gap-1.5"><span className="spinner spinner-sm"/>Re-analysis runs in the background — you can switch pages; it keeps going until it finishes or you stop it.</p>}
     </div>
   </div>;
 }
@@ -659,106 +842,8 @@ function Sidebar({logs,soap}){
    ════════════════════════════════════════════════════════ */
 function AnalysisView(){
   const t=useToast();
-  const[input,setInput]=useState('');
-  const[busy,setBusy]=useState(false);
-  const[res,setRes]=useState(null);
-  const[steps,setSteps]=useState({});
-  const[agentMsgs,setAgentMsgs]=useState([]);
-  const[logs,setLogs]=useState([]);
+  const{input,setInput,busy,res,steps,agentMsgs,logs,run,stop,clear,uploadFile,loadSampleCSV,loadSampleFHIR,feedback}=useAnalysis();
   const taRef=useRef(null);
-
-  const log=useCallback((src,msg)=>{const time=new Date().toLocaleTimeString('en-US',{hour12:false});setLogs(p=>[...p,{time,src,msg}])},[]);
-  const addMsg=useCallback((text,type='status')=>setAgentMsgs(p=>[...p,{text,type}]),[]);
-  const uStep=useCallback((k,v)=>setSteps(p=>({...p,[k]:v})),[]);
-  const allDone=useCallback(()=>PIPELINE_STEPS.forEach(s=>uStep(s.key,'done')),[uStep]);
-
-  const tryWS=useCallback(text=>new Promise(resolve=>{
-    const url=`${API.replace('http','ws')}/ws/analyze`;
-    let ws;try{ws=new WebSocket(url)}catch{resolve(false);return}
-    const to=setTimeout(()=>{ws.close();resolve(false)},4000);
-    ws.onopen=()=>{clearTimeout(to);ws.send(JSON.stringify({text}));log('system','WebSocket connected');addMsg('Stream opened')};
-    ws.onmessage=ev=>{try{
-      const m=JSON.parse(ev.data);
-      if(m.type==='status'){
-        const d=m.detail||m.stage||'';log('pipeline',d);addMsg(d);
-        const s=(m.stage||d).toLowerCase();
-        if(s.includes('pars')){uStep('parsing','done');uStep('agents','active')}
-        if(s.includes('agent')){uStep('parsing','done');uStep('agents','active')}
-        if(s.includes('literature')||s.includes('safety'))addMsg(d,'agent');
-        if(s.includes('debate')||s.includes('critic')){uStep('agents','done');uStep('debate','active')}
-        if(s.includes('synth')){uStep('debate','done');uStep('synthesis','active')}
-        if(s.includes('safety')&&s.includes('panel')){uStep('synthesis','done');uStep('safety_panel','active')}
-      }else if(m.type==='agent_result'){log('pipeline',`${m.agent} ✓`);addMsg(`${m.agent} completed`,'agent')}
-      else if(m.type==='complete'){allDone();setRes(m);setBusy(false);log('system','✓ Complete');t('Analysis complete','success');resolve(true)}
-      else if(m.type==='error'){log('error',m.message||'');t(m.message||'Error','error')}
-    }catch{}};
-    ws.onerror=()=>{clearTimeout(to);resolve(false)};
-    ws.onclose=()=>resolve(false);
-  }),[log,addMsg,uStep,allDone,t]);
-
-  const run=useCallback(async()=>{
-    if(!input.trim()){t('Enter clinical data','warning');return}
-    setBusy(true);setRes(null);setSteps({parsing:'active'});setLogs([]);setAgentMsgs([]);
-    log('system','Starting analysis…');addMsg('Initializing pipeline');
-    try{
-      if(await tryWS(input.trim()))return;
-      log('system','REST fallback');
-      const r=await cpFetch(`${API}/api/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:input.trim()})});
-      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`HTTP ${r.status}`)}
-      const data=await r.json();allDone();setRes(data);log('system','✓ Complete');t('Analysis complete','success');
-    }catch(e){log('error',e.message);t(e.message,'error');setSteps(p=>{const n={...p};for(const k in n)if(n[k]==='active')n[k]='error';return n})}
-    finally{setBusy(false)}
-  },[input,tryWS,log,addMsg,allDone,t]);
-
-  const uploadFile=useCallback(async(file,ep)=>{
-    try{
-      let r;
-      if(ep==='/api/upload/fhir')r=await fetch(`${API}${ep}`,{method:'POST',headers:{'Content-Type':'application/json'},body:await file.text()});
-      else{const fd=new FormData();fd.append('file',file);r=await fetch(`${API}${ep}`,{method:'POST',body:fd})}
-      if(!r.ok)throw new Error('Upload failed');
-      const d=await r.json();
-      if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`;setInput(s.trim())}
-      if(d.summary)setInput(p=>p?p+'\n\n'+d.summary:d.summary);
-      t(`Parsed ${ep.includes('fhir')?'FHIR bundle':file.name}`,'success');log('upload','File ingested');
-    }catch(e){t(e.message,'error')}
-  },[t,log]);
-
-  const loadSampleCSV=useCallback(async()=>{
-    try{
-      const csv=`patient_id,age,gender,condition,medication,dosage,lab_name,lab_value,lab_unit,allergy,vital_name,vital_value
-P003,45,male,Hypertension,Metformin,1000mg BID,Troponin I,0.82,ng/mL,,BP,160/95
-P003,45,male,Type 2 Diabetes,Lisinopril,20mg daily,WBC,11.2,K/uL,Sulfa drugs,HR,110
-P003,45,male,Hyperlipidemia,Atorvastatin,40mg daily,Glucose,245,mg/dL,Shellfish,RR,22
-P003,45,male,,Aspirin,81mg daily,Creatinine,1.1,mg/dL,,SpO2,94%
-P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
-      const blob=new Blob([csv],{type:'text/csv'});
-      const file=new File([blob],'sample_stemi.csv',{type:'text/csv'});
-      const fd=new FormData();fd.append('file',file);
-      const r=await fetch(`${API}/api/upload/ehr`,{method:'POST',body:fd});
-      if(!r.ok)throw new Error('CSV parse failed');
-      const d=await r.json();
-      if(d.summary)setInput(d.summary);
-      else if(d.patient_context){const c=d.patient_context;let s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;setInput(s.trim())}
-      t('Sample CSV loaded','success');
-    }catch(e){t(e.message,'error')}
-  },[t]);
-
-  const loadSampleFHIR=useCallback(async()=>{
-    try{
-      const r=await fetch(`${API}/api/upload/fhir`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SAMPLE_FHIR)});
-      if(!r.ok)throw new Error('FHIR parse failed');
-      const d=await r.json();
-      let s=d.summary||'';
-      if(d.patient_context){const c=d.patient_context;s='';if(c.age)s+=`${c.age}-year-old ${c.gender||''}\n`;if(c.conditions?.length)s+=`Conditions: ${c.conditions.map(x=>x.display||x.name||x).join(', ')}\n`;if(c.medications?.length)s+=`Medications: ${c.medications.map(x=>x.name||x).join(', ')}\n`;if(c.allergies?.length)s+=`Allergies: ${c.allergies.map(x=>x.substance||x).join(', ')}\n`;if(c.labs?.length)s+=`Labs: ${c.labs.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.vitals?.length)s+=`Vitals: ${c.vitals.map(x=>`${x.name}: ${x.value} ${x.unit||''}`).join(', ')}\n`;if(c.current_prompt)s+=`\n${c.current_prompt}`}
-      setInput(s.trim()||'Sample FHIR patient loaded');t('FHIR bundle loaded','success');
-    }catch(e){t(e.message,'error')}
-  },[t]);
-
-  const feedback=useCallback(async fb=>{
-    const s=res?.soap;if(!s){t('Run analysis first','warning');return}
-    log('human',`Feedback: "${fb.slice(0,50)}…"`);
-    try{const r=await cpFetch(`${API}/api/human-feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({original_text:input,feedback:fb,edited_soap:JSON.stringify(s)})});if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||'Feedback failed')}const d=await r.json();t('Re-analysis complete','success');if(d.soap)setRes(d);}catch(e){t(e.message,'error')}
-  },[res,log,t]);
 
   const soap=res?.soap||(res?.subjective?res:null);
   const debate=res?.debate||{};
@@ -818,16 +903,21 @@ P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
           </div>
 
           {/* Run */}
-          <div className="mt-5 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-2.5 flex-wrap">
             <button onClick={run} disabled={busy}
-              className="flex items-center gap-2.5 px-7 py-3 rounded-xl text-[15px] font-display font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2.5 px-7 py-3 rounded-xl text-[15px] font-display font-bold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               style={{background:busy?'#27272a':'linear-gradient(135deg,#2563eb,#3b82f6)',boxShadow:busy?'none':'0 4px 24px rgba(37,99,235,.3)'}}>
               {busy?<><span className="spinner"/>Analyzing…</>:<><Ic name="play" size={17}/>Run Analysis</>}
             </button>
-            <button onClick={()=>{setInput('');setRes(null);setSteps({});setLogs([]);setAgentMsgs([])}}
-              className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm text-zinc-500 hover:text-zinc-300 bg-zinc-800/40 hover:bg-zinc-800 border border-zinc-800 transition">
-              <Ic name="trash" size={14}/>Clear
-            </button>
+            {busy
+              ? <button onClick={stop}
+                  className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-display font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all">
+                  <Ic name="square" size={14}/>Stop Analysis
+                </button>
+              : <button onClick={clear}
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm text-zinc-500 hover:text-zinc-300 bg-zinc-800/40 hover:bg-zinc-800 border border-zinc-800 transition">
+                  <Ic name="trash" size={14}/>Clear
+                </button>}
             <span className="text-[10px] text-zinc-600 ml-auto hidden sm:flex items-center gap-1"><kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 font-mono text-[9px] border border-zinc-700">⌘ Enter</kbd></span>
           </div>
         </div>
@@ -1435,6 +1525,7 @@ function App(){
   useEffect(()=>{const t=setTimeout(()=>{document.getElementById('splash')?.classList.add('hide')},2200);return()=>clearTimeout(t)},[]);
 
   return <ToastProvider>
+    <AnalysisProvider>
     <div className="min-h-screen flex flex-col relative">
       <Navbar view={view} setView={setView} online={online} onSettingsClick={()=>setView('settings')} activeProvider={activeProvider}/>
       <NeedsKeyModal state={needKey} onClose={()=>setNeedKey(null)} onSaved={fetchConfigStatus}/>
@@ -1452,6 +1543,7 @@ function App(){
         ClinicalPilot v2 · Multi-Agent Clinical Decision Support · For research & educational use only
       </footer>
     </div>
+    </AnalysisProvider>
   </ToastProvider>;
 }
 

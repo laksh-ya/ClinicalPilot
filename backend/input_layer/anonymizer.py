@@ -32,24 +32,26 @@ except ImportError:
 class Anonymizer:
     """Scrubs PHI from clinical text."""
 
-    def __init__(self, spacy_model: str = "en_core_web_lg"):
+    def __init__(self, spacy_model: str = "en_core_web_sm"):
         self._presidio_analyzer: Optional[AnalyzerEngine] = None
         self._presidio_anonymizer: Optional[AnonymizerEngine] = None
 
         if _PRESIDIO_AVAILABLE:
             try:
-                # Ensure spaCy model is available
+                # The spaCy model must already be installed (it ships in requirements as a
+                # wheel). We do NOT download at runtime — pulling a model inside a web
+                # request would block the worker and can OOM small hosts. If the model
+                # isn't present, fall through to the regex fallback below.
                 import spacy
                 try:
                     spacy.load(spacy_model)
                 except OSError:
-                    logger.info(f"Downloading spaCy model {spacy_model}...")
-                    import subprocess, sys
-                    subprocess.check_call(
-                        [sys.executable, "-m", "spacy", "download", spacy_model],
+                    logger.warning(
+                        "spaCy model '%s' not installed — using regex PHI fallback. "
+                        "Add it to requirements or `python -m spacy download %s`.",
+                        spacy_model, spacy_model,
                     )
-                    # Verify it loaded after download
-                    spacy.load(spacy_model)
+                    raise  # handled by the outer except → regex fallback
 
                 from presidio_analyzer.nlp_engine import (
                     NlpEngineProvider,
@@ -172,7 +174,7 @@ class Anonymizer:
 _anonymizer: Optional[Anonymizer] = None
 
 
-def get_anonymizer(spacy_model: str = "en_core_web_lg") -> Anonymizer:
+def get_anonymizer(spacy_model: str = "en_core_web_sm") -> Anonymizer:
     global _anonymizer
     if _anonymizer is None:
         _anonymizer = Anonymizer(spacy_model=spacy_model)

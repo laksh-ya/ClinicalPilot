@@ -15,7 +15,10 @@ clinicalpilot/
 ├── .env.example             ← Template for environment variables
 ├── .env                     ← Local secrets (NEVER commit)
 ├── .gitignore
-├── requirements.txt         ← Python dependencies
+├── requirements.txt         ← Lean runtime deps (free-tier friendly)
+├── requirements-optional.txt← Heavy extras: RAG (torch), unstructured, langchain, langsmith
+├── render.yaml              ← Render deployment blueprint (Python 3.11, en_core_web_sm)
+├── config/models.json       ← Model engines + per-role routing
 ├── pyproject.toml           ← Project metadata
 │
 ├── Flowcharts/              ← Visual architecture diagrams (HTML)
@@ -70,10 +73,15 @@ clinicalpilot/
 │   │   ├── __init__.py
 │   │   └── med_errors.py    ← Drug interactions, dosing alerts
 │   │
-│   ├── rag/                 ← RAG / Vector DB layer
+│   ├── llm/                 ← LiteLLM router + model registry + secret resolution
+│   │   ├── registry.py      ← config/models.json load/save, role → engine resolution
+│   │   ├── router.py        ← LiteLLM call args, cross-provider JSON parsing, artifact strip
+│   │   └── secrets.py       ← key resolution: hardcoded → runtime(UI) → ask
+│   │
+│   ├── rag/                 ← RAG / Vector DB layer (OPTIONAL — CLI only, not in request path)
 │   │   ├── __init__.py
-│   │   ├── lancedb_store.py ← LanceDB vector store
-│   │   └── embeddings.py    ← Embedding utilities
+│   │   ├── lancedb_store.py ← LanceDB vector store   (needs requirements-optional.txt)
+│   │   └── embeddings.py    ← sentence-transformers  (needs requirements-optional.txt; pulls torch)
 │   │
 │   ├── external/            ← External API integrations
 │   │   ├── __init__.py
@@ -84,7 +92,8 @@ clinicalpilot/
 │   │
 │   ├── observability/       ← Tracing & monitoring
 │   │   ├── __init__.py
-│   │   └── tracing.py       ← LangSmith / Langfuse integration
+│   │   ├── store.py         ← In-app trace store: ring buffer + SQLite (primary)
+│   │   └── tracing.py       ← Optional LangSmith / Langfuse export (needs optional deps)
 │   │
 │   └── guardrails/          ← Output validation rules
 │       ├── __init__.py
@@ -107,9 +116,9 @@ clinicalpilot/
 
 ### Layer 1: Input Gateway
 - **FHIR API** (HL7 FHIR R4 JSON) → flattened to text chunks
-- **EHR Upload** (PDF/CSV) → parsed via Unstructured.io / PyPDF2
+- **EHR Upload** (PDF/CSV) → PyPDF2 by default; `unstructured` used only if installed (optional extra)
 - **Free Text / Voice** → direct text, future: Whisper STT
-- **Anonymizer** → Microsoft Presidio (PHI scrubbing, FHIR-aware)
+- **Anonymizer** → Microsoft Presidio + spaCy `en_core_web_sm`; **degrades to regex PHI scrubbing** if the model/library is absent (so the app still runs on minimal installs)
 
 ### Layer 2: Processing (Parsers → Unified Schema)
 - FHIR Parser: Extracts Patient, Condition, Observation, MedicationRequest
@@ -121,20 +130,22 @@ clinicalpilot/
 | Agent | Model | Tools | Output |
 |-------|-------|-------|--------|
 | Clinical | Provider-aware (Ollama/OpenAI/Groq) | PatientContext + few-shot CoT | Differential dx, risk scores, SOAP draft |
-| Literature | Provider-aware (fast model where available) | PubMed (BioPython Entrez), RAG (LanceDB) | Evidence snippets, confidence, contradictions |
+| Literature | Provider-aware (fast model where available) | PubMed (BioPython Entrez); RAG/LanceDB optional | Evidence snippets, confidence, contradictions |
 | Safety | Provider-aware + rule-based checks | DrugBank CSV, RxNorm, optional openFDA | Structured warnings with severity |
 
 ### Model Routing (LiteLLM-backed)
 All model calls go through a **role → engine registry** (`config/models.json`), resolved by
 `backend/llm/`. Every agent + chat is a *role* mapping to a **primary engine + fallbacks**;
 each engine is any provider/model/base_url/key (Ollama, OpenAI, Groq, Azure, Anthropic, or
-any OpenAI-compatible endpoint) via **LiteLLM**. Default: everything → MedGemma (local Ollama),
-fallback → a cloud engine. Keys resolve **hardcoded → runtime(UI) → ask** (428 `needs_key`).
+any OpenAI-compatible endpoint) via **LiteLLM**. **Shipped default: everything → `cloud-fast`
+(Groq), no fallback** — so a fresh/hosted install works with just `GROQ_API_KEY` and no local-Ollama
+wait. A `medgemma-local` (Ollama) engine and a `cloud-quality` (OpenAI) engine are pre-defined; point
+any role at them in Settings. Keys resolve **hardcoded → runtime(UI) → ask** (428 `needs_key`).
 Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_SYSTEM_PLAN.md`.
 
 ### AI Chat Service
 - Endpoint: `POST /api/chat`
-- Engine: the `chat` role (configurable; defaults to MedGemma with a cloud fallback)
+- Engine: the `chat` role (configurable; ships pointing at `cloud-fast`/Groq)
 - Purpose: Fast conversational clinical Q&A — no agent/debate overhead
 - Maintains full conversation history (multi-turn)
 - Uses a dedicated clinical system prompt (evidence-based, structured formatting, safety-first)
@@ -154,8 +165,10 @@ Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_
 - Human-in-the-loop: doctor edits → optional re-debate (max 1 iteration)
 
 ### Layer 6: Observability
-- LangSmith (or Langfuse) for tracing every agent call
-- Token usage, latency breakdown, debate visualization
+- **Built-in, dependency-free**: in-memory ring buffer + SQLite (`backend/observability/store.py`)
+  records every call — provider/model/agent, tokens, latency, request/debate-round grouping
+- Exposed at `/api/observability/summary` and `/api/observability/traces` (Observability tab)
+- **Optional** LangSmith/Langfuse export (`tracing.py`) only when their keys + optional deps are present
 
 ### Layer 7: Guardrails
 - Pydantic schema validation for SOAP output
@@ -187,6 +200,29 @@ Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_
 
 ---
 
+## Dependency Footprint (lean by default)
+
+`requirements.txt` holds only what the request path actually imports, so the app builds inside a
+512 MB free tier. Heavy/optional packages live in `requirements-optional.txt`, each lazy-imported
+with a graceful fallback:
+
+| Package | Status | Reason |
+|---------|--------|--------|
+| `groq` SDK | **removed** | LiteLLM already speaks Groq; the `groq` package is never imported |
+| `langchain*` | **optional** | not imported anywhere in the code today |
+| `sentence-transformers` | **optional** | RAG-CLI only; pulls **torch (~2 GB)** → the main free-tier build OOM |
+| `lancedb` | **optional** | RAG vector store; literature agent uses PubMed instead |
+| `unstructured` | **optional** | richer PDF parse; `ehr_parser` auto-falls back to PyPDF2 |
+| `langsmith` | **optional** | external trace sink; built-in observability works without it |
+| `aiohttp`, `jinja2` | **unpinned** | only needed transitively; pip resolves them when a dep requires them |
+| spaCy `en_core_web_lg` → `en_core_web_sm` | **swapped** | 560 MB runtime download (crashed mid-request) → 12 MB wheel installed at build |
+
+Nothing in `backend.main`'s import graph loads torch/langchain/lancedb/unstructured. Installing the
+optional file re-enables the RAG CLI, richer PDF parsing, and external tracing on a box with the RAM
+to spare. See `INSTALL.md` for the full breakdown and Render deployment guidance.
+
+---
+
 ## Operational Summary (Short List)
 
 1. Configure at least one LLM provider key (`OPENAI_API_KEY` and/or `GROQ_API_KEY`), plus `NCBI_EMAIL` for PubMed etiquette.
@@ -194,7 +230,7 @@ Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_
 3. Submit free text, FHIR bundle, or EHR document to trigger the full debate pipeline (`POST /api/analyze`).
 4. Use emergency fast-path (`POST /api/emergency`) for rapid triage outputs.
 5. Use runtime provider controls from UI Settings (`GET /api/config-status`, `POST /api/set-api-key`) without editing `.env`.
-6. Optional: enable local Ollama and pre-populate LanceDB for fully offline-leaning workflows.
+6. Optional: enable local Ollama (point roles at `medgemma-local`) and — with `requirements-optional.txt` installed — pre-populate LanceDB for fully offline-leaning workflows.
 
 ---
 
@@ -226,7 +262,7 @@ Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_
 
 ## Key Design Decisions
 
-1. **LanceDB over ChromaDB/Pinecone**: Serverless, embedded, low-ops vector storage for local-first deployment.
+1. **LanceDB over ChromaDB/Pinecone** (optional RAG): Serverless, embedded, low-ops vector storage for local-first deployment — an optional extra, not required to run the app (the request path uses PubMed, not the vector store).
 2. **Async Python (asyncio)**: All agent calls are async for parallel execution.
 3. **Pydantic everywhere**: Type safety, auto-validation, JSON schema generation.
 4. **Static frontend**: React 18 + Babel CDN. No React build step, no npm. Fastest to iterate.
@@ -266,7 +302,7 @@ Configure live in the **Settings** tab or edit `config/models.json`. See `MODEL_
 
 ---
 
-*Last updated: 2026-03-14*
+*Last updated: 2026-07-22*
 
 ### Notes
 

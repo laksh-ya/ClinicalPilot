@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _SECRETS_FILE = PROJECT_ROOT / "config" / "secrets.local.py"
 
+# Load a local .env into the real environment so keys placed there (e.g. GROQ_API_KEY)
+# are visible to resolve_secret(). On hosts like Render, env vars are already real, so
+# this is a no-op there. Never overrides an existing env var.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+except Exception:
+    pass
+
 # ── Runtime overrides (in-memory only, set via the UI) ──────────────────────
 _runtime_secrets: dict[str, str] = {}
 

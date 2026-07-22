@@ -57,7 +57,9 @@ class Settings(BaseSettings):
     drugbank_csv_path: str = "data/drugbank/drugbank_vocabulary.csv"
 
     # ── SpaCy ────────────────────────────────────────────
-    spacy_model: str = "en_core_web_lg"
+    # Small model by default: ~12MB vs ~560MB for _lg. Presidio works with either;
+    # _sm keeps memory low enough for free-tier hosts. Override via SPACY_MODEL.
+    spacy_model: str = "en_core_web_sm"
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

@@ -1,0 +1,35 @@
+# Render Blueprint for ClinicalPilot (free tier friendly)
+# Deploy: push to your repo, then in Render → "New +" → "Blueprint" → pick this repo.
+# Set GROQ_API_KEY in the Render dashboard (Environment) — it is intentionally not in git.
+services:
+  - type: web
+    name: clinicalpilot
+    runtime: python
+    plan: free
+    # Pin Python 3.11 — broad wheel availability (3.13 can force slow source builds that
+    # OOM the free tier). Lean requirements.txt: no torch/langchain/unstructured.
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
+    envVars:
+      # Python version is ALSO pinned in the repo-root `.python-version` file (3.11.9),
+      # which Render reads even for services NOT created from this Blueprint. Keep the two
+      # in sync. Pinned to 3.11 for broad wheel availability — Render's default (3.13) can
+      # force slow source builds that OOM the free tier. (A dashboard PYTHON_VERSION env var,
+      # if set, overrides both — make sure it also says 3.11.9.)
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Small spaCy model keeps memory under the 512MB free-tier cap.
+      - key: SPACY_MODEL
+        value: "en_core_web_sm"
+      - key: LOG_LEVEL
+        value: "INFO"
+      # Your Groq key — set the value in the Render dashboard, not in git.
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional: an OpenAI key if you route any agent to the "Cloud Quality" engine.
+      - key: OPENAI_API_KEY
+        sync: false
+      # Optional: PubMed etiquette email for the literature agent.
+      - key: NCBI_EMAIL
+        sync: false

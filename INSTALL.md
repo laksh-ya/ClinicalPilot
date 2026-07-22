@@ -75,43 +75,25 @@ Open http://localhost:8000 in your browser, then open **Settings** to configure 
 
 ### Python Dependencies Breakdown
 
+Two files:
+- **`requirements.txt`** — everything needed to run the app (lean, deploy-safe). Includes
+  FastAPI, LiteLLM (+OpenAI SDK), Presidio + spaCy `en_core_web_sm`, PyPDF2, biopython, httpx.
+- **`requirements-optional.txt`** — heavy extras you can add locally: `sentence-transformers`
+  + `lancedb` (RAG vector store — pulls **torch**), `unstructured` (richer PDF parsing),
+  `langchain*`, `langsmith`. **None are required to run the app**, and every use of them in
+  the code is lazy-loaded with a graceful fallback.
+
 ```bash
-# Core framework
-pip install fastapi uvicorn[standard] python-multipart
+# Standard install (what you deploy)
+pip install -r requirements.txt
 
-# LLM & Agents (litellm = unified client for Ollama/OpenAI/Groq/Azure/Anthropic/any OpenAI-compatible endpoint)
-pip install litellm openai groq langchain langchain-openai langchain-community
+# Optional heavy extras (local only, needs more RAM/disk — installs torch)
+pip install -r requirements-optional.txt
+```
 
-# Data models & validation
-pip install pydantic pydantic-settings
-
-# Vector DB (LanceDB)
-pip install lancedb
-
-# Embeddings
-pip install sentence-transformers
-
-# PDF / Document parsing
-pip install unstructured[pdf] PyPDF2
-
-# PHI Anonymization (Microsoft Presidio)
-pip install presidio-analyzer presidio-anonymizer spacy
-python -m spacy download en_core_web_lg
-
-# PubMed API
-pip install biopython
-
-# Observability
-pip install langsmith
-
-# HTTP client
-pip install httpx aiohttp
-
-# Utilities
-pip install python-dotenv jinja2
-
-# WebSocket support (included in uvicorn[standard])
-# pip install websockets
+> The spaCy model ships as a wheel inside `requirements.txt` — no separate
+> `python -m spacy download` step. To use the larger `en_core_web_lg` on a bigger host,
+> install its wheel and set `SPACY_MODEL=en_core_web_lg`.
 ```
 
 Or just run:
@@ -119,23 +101,21 @@ Or just run:
 pip install -r requirements.txt
 ```
 
-### SpaCy Model (Required for Presidio)
+### SpaCy Model (for Presidio PHI scrubbing)
 
-```bash
-# Recommended: install directly via pip (avoids spaCy 3.7.x download URL bug)
-pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
-```
+**The default `en_core_web_sm` (~12 MB) is already pinned in `requirements.txt`** and installs
+automatically — you don't need to do anything here for a standard setup. It's small enough for a
+512 MB free tier, installed as a wheel at build time (no runtime `spacy download`). If it can't
+load for any reason, the anonymizer **degrades to regex PHI scrubbing** and the app keeps running.
 
-Alternatively (if `spacy download` works on your system):
+Only if you want stronger named-entity PHI detection **and** have the RAM (~560 MB), upgrade to the
+large model on that host:
 ```bash
-python -m spacy download en_core_web_lg
+pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl
+# Then set SPACY_MODEL=en_core_web_lg in .env
 ```
-
-This is ~560MB. If you need a smaller model:
-```bash
-pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
-# Then set SPACY_MODEL=en_core_web_sm in .env
-```
+> Do **not** use `en_core_web_lg` on a free/512 MB host — it's the exact combination (large model
+> + runtime download) that caused the earlier deploy to OOM mid-request.
 
 ---
 
@@ -364,6 +344,39 @@ python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```bash
 docker-compose up --build
 ```
+
+---
+
+## Deploying to Render (free tier)
+
+The repo ships a `render.yaml` Blueprint. The default routing is **Groq-first**
+(engine "Cloud Fast"), so a hosted instance works with just a Groq key — no local Ollama.
+
+1. Push the repo to GitHub.
+2. Render → **New +** → **Blueprint** → pick the repo (it reads `render.yaml`).
+3. In the service's **Environment**, set **`GROQ_API_KEY`** (and optionally `OPENAI_API_KEY`,
+   `NCBI_EMAIL`). These are `sync: false` in the blueprint — set the values in the dashboard.
+4. Deploy. Health check is `GET /api/health`.
+
+**Why it wasn't building/staying up before, and what changed:**
+
+| Cause | Fix |
+|-------|-----|
+| `sentence-transformers` pulled **torch (~2 GB)** → build OOM. Nothing in the request path uses RAG. | Moved to `requirements-optional.txt`. Lean `requirements.txt` has no torch. |
+| `langchain*`, `unstructured`, `lancedb`, `groq`, `aiohttp`, `jinja2`, `langsmith` listed but **not imported** (or pulled transitively). | Removed from the deploy requirements. |
+| spaCy default `en_core_web_lg` (~560 MB) + a **runtime `spacy download`** inside a request → memory spike / crash mid-run. | Default is now `en_core_web_sm` (~12 MB), installed as a wheel at build; **no runtime download**. Falls back to regex PHI scrubbing if the model can't load — the app never crashes on this. |
+| Python 3.13 (Render's default) can force slow source builds. | Version is pinned **two ways**: the repo-root **`.python-version`** file (`3.11.9`, read by Render even when the service was created manually) **and** `render.yaml`'s `PYTHON_VERSION=3.11.9` (used on Blueprint deploys). **If you also set `PYTHON_VERSION` in the Render dashboard, it overrides both — make it `3.11.9` too.** Keep all three identical. |
+| `ResolutionImpossible` — `litellm` needs `openai>=1.68.2` but the old file pinned `openai==1.50.0`. | Fixed in the lean `requirements.txt` (`openai>=1.99.0`, no `aiohttp`/`jinja2` pins). Never hard-pin `openai` below litellm's floor. |
+
+> **Presidio is kept.** Consequence of `en_core_web_sm`: named-entity PHI detection (names,
+> locations) is slightly less accurate than `_lg`, but Presidio still detects them; SSN/phone/
+> email/dates are regex-backed regardless. To use the large model on a bigger host, set
+> `SPACY_MODEL=en_core_web_lg` and `pip install` its wheel. If Presidio/spaCy aren't installed
+> at all, the app automatically uses regex-only scrubbing (names are not caught in that mode).
+
+**Heavy/optional extras** (local only, needs more RAM): `pip install -r requirements-optional.txt`
+adds the RAG vector store (sentence-transformers + lancedb), `unstructured` PDF parsing, and
+LangChain. None are required to run the app.
 
 ---
 

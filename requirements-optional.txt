@@ -1,0 +1,27 @@
+# ClinicalPilot — OPTIONAL / heavy extras (NOT required to run the app)
+#
+# These power features that are lazy-loaded and gracefully skipped when absent:
+#   - sentence-transformers + lancedb : the RAG vector store (backend/rag/*).
+#         NOTE: nothing in the live request path imports backend.rag — the literature
+#         agent uses PubMed. These are only for the standalone RAG ingest/query CLI.
+#         sentence-transformers pulls in torch (~2GB) — do NOT install on a 512MB free tier.
+#   - unstructured : richer PDF layout parsing in ehr_parser (falls back to PyPDF2).
+#   - langchain*   : not currently imported by the code; kept for future integrations.
+#   - langsmith    : external tracing export (optional observability sink).
+#
+# Install locally with:  pip install -r requirements-optional.txt
+
+# RAG / embeddings / vector DB (heavy — pulls torch)
+sentence-transformers>=5.0.0
+lancedb>=0.24.0
+
+# Advanced document parsing
+unstructured>=0.24.1
+
+# LangChain (reserved for future integrations; not imported today)
+langchain>=0.3.27
+langchain-openai>=0.3.28
+langchain-community>=0.3.27
+
+# External observability export
+langsmith>=0.4.0
