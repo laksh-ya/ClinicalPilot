@@ -54,7 +54,7 @@ class RoleRoute(BaseModel):
 
 
 class DebateConfig(BaseModel):
-    max_rounds: int = 3
+    max_rounds: int = 1
     min_rounds: int = 1
     consensus_required: bool = True
 

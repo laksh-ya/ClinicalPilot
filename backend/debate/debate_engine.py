@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 async def run_debate(
     patient: PatientContext,
-    max_rounds: int = 3,
+    max_rounds: int = 1,
 ) -> DebateState:
     """
     Run the full multi-agent debate.

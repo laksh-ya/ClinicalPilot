@@ -237,6 +237,28 @@ def get_summary() -> dict:
             del b["latency_sum"]; del b["latency_n"]
         return out
 
+    # Per-debate-round breakdown (only rounds that were actually recorded).
+    def _round_bucket() -> dict:
+        out: dict[str, dict] = {}
+        for t in data:
+            r = t.get("debate_round")
+            if r is None:
+                continue
+            k = f"Round {r}"
+            b = out.setdefault(k, {"calls": 0, "errors": 0, "tokens": 0, "latency_sum": 0, "latency_n": 0})
+            b["calls"] += 1
+            if not t["success"]:
+                b["errors"] += 1
+            b["tokens"] += t["tokens_total"]
+            if t["success"] and t["latency_ms"]:
+                b["latency_sum"] += t["latency_ms"]
+                b["latency_n"] += 1
+        for b in out.values():
+            b["avg_latency_ms"] = int(b["latency_sum"] / b["latency_n"]) if b["latency_n"] else 0
+            del b["latency_sum"]; del b["latency_n"]
+        # keep rounds in numeric order
+        return {k: out[k] for k in sorted(out, key=lambda s: int(s.split()[-1]))}
+
     return {
         "total_calls": total,
         "success": ok,
@@ -248,6 +270,7 @@ def get_summary() -> dict:
         "by_agent": _bucket("role"),
         "by_provider": _bucket("provider"),
         "by_model": _bucket("model"),
+        "by_round": _round_bucket(),
         "last_request_id": data[-1]["request_id"] if data else "",
     }
 

@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: list[str] = ["*"]
     emergency_timeout_sec: int = 5
-    max_debate_rounds: int = 3
+    max_debate_rounds: int = 1
 
     # ── Data Paths ───────────────────────────────────────
     lancedb_path: str = "data/lancedb"

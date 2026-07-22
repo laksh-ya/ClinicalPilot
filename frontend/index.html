@@ -500,6 +500,58 @@ P003,45,male,,,,HbA1c,8.2,%,,Temp,98.6`;
 }
 
 /* ════════════════════════════════════════════════════════
+   SESSION STORE — keeps Chat history + Observability data alive
+   across page switches (they used to reset on unmount). State lives
+   here, above the router, so it persists for the whole session.
+   ════════════════════════════════════════════════════════ */
+const SessionCtx=createContext(null);
+function useSession(){return useContext(SessionCtx)}
+const CHAT_GREETING="Hello! I'm ClinicalPilot AI. I can help with clinical questions, drug interactions, differential diagnoses, lab interpretation, and guideline lookups. How can I help you today?";
+
+function SessionProvider({children}){
+  const t=useToast();
+  // ── Chat (persists across navigation) ──
+  const[chatMsgs,setChatMsgs]=useState([{role:'assistant',content:CHAT_GREETING}]);
+  const[chatInput,setChatInput]=useState('');
+  const[chatBusy,setChatBusy]=useState(false);
+  const[chatMeta,setChatMeta]=useState(null);
+
+  const sendChat=useCallback(async()=>{
+    if(!chatInput.trim()||chatBusy)return;
+    const userMsg=chatInput.trim();setChatInput('');
+    const newMsgs=[...chatMsgs,{role:'user',content:userMsg}];
+    setChatMsgs(newMsgs);setChatBusy(true);
+    try{
+      const history=newMsgs.filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
+      const r=await cpFetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
+      if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||`HTTP ${r.status}`)}
+      const d=await r.json();
+      setChatMsgs(p=>[...p,{role:'assistant',content:d.reply}]);
+      setChatMeta({model:d.model,latency:d.latency_ms,tokens:d.tokens,provider:d.provider||'unknown'});
+    }catch(e){setChatMsgs(p=>[...p,{role:'assistant',content:`Sorry, I encountered an error: ${e.message}. Please try again.`}]);t(e.message,'error')}
+    finally{setChatBusy(false)}
+  },[chatInput,chatBusy,chatMsgs,t]);
+
+  const clearChat=useCallback(()=>{setChatMsgs([{role:'assistant',content:'Chat cleared. How can I help?'}]);setChatMeta(null)},[]);
+
+  // ── Observability (data cached so it doesn't vanish/flash on nav) ──
+  const[obsSum,setObsSum]=useState(null);
+  const[obsTraces,setObsTraces]=useState([]);
+  const[obsAuto,setObsAuto]=useState(false);
+  const loadObs=useCallback(()=>{
+    fetch(`${API}/api/observability/summary`).then(r=>r.json()).then(setObsSum).catch(()=>{});
+    fetch(`${API}/api/observability/traces?limit=40`).then(r=>r.json()).then(d=>setObsTraces(d.traces||[])).catch(()=>{});
+  },[]);
+  const clearObs=useCallback(async()=>{
+    await fetch(`${API}/api/observability/traces`,{method:'DELETE'});loadObs();
+  },[loadObs]);
+
+  const val={chatMsgs,chatInput,setChatInput,chatBusy,chatMeta,sendChat,clearChat,
+             obsSum,obsTraces,obsAuto,setObsAuto,loadObs,clearObs};
+  return <SessionCtx.Provider value={val}>{children}</SessionCtx.Provider>;
+}
+
+/* ════════════════════════════════════════════════════════
    NAVBAR
    ════════════════════════════════════════════════════════ */
 const NAV=[
@@ -1129,29 +1181,9 @@ function ArchView(){
    VIEW: AI Chat Assistant
    ════════════════════════════════════════════════════════ */
 function ChatView(){
-  const t=useToast();
-  const[msgs,setMsgs]=useState([{role:'assistant',content:'Hello! I\'m ClinicalPilot AI. I can help with clinical questions, drug interactions, differential diagnoses, lab interpretation, and guideline lookups. How can I help you today?'}]);
-  const[input,setInput]=useState('');
-  const[busy,setBusy]=useState(false);
-  const[meta,setMeta]=useState(null);
+  const{chatMsgs:msgs,chatInput:input,setChatInput:setInput,chatBusy:busy,chatMeta:meta,sendChat:send,clearChat}=useSession();
   const endRef=useRef(null);
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[msgs]);
-
-  const send=useCallback(async()=>{
-    if(!input.trim()||busy)return;
-    const userMsg=input.trim();setInput('');
-    const newMsgs=[...msgs,{role:'user',content:userMsg}];
-    setMsgs(newMsgs);setBusy(true);
-    try{
-      const history=newMsgs.filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.content}));
-      const r=await cpFetch(`${API}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
-      if(!r.ok){const err=await r.json().catch(()=>({}));throw new Error(err.detail||`HTTP ${r.status}`)}
-      const d=await r.json();
-      setMsgs(p=>[...p,{role:'assistant',content:d.reply}]);
-      setMeta({model:d.model,latency:d.latency_ms,tokens:d.tokens,provider:d.provider||'unknown'});
-    }catch(e){setMsgs(p=>[...p,{role:'assistant',content:`Sorry, I encountered an error: ${e.message}. Please try again.`}]);t(e.message,'error')}
-    finally{setBusy(false)}
-  },[input,busy,msgs,t]);
 
   const providerLabel=meta?.model||'';
 
@@ -1184,7 +1216,7 @@ function ChatView(){
         <button onClick={send} disabled={busy||!input.trim()} className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white transition disabled:opacity-40"><Ic name="send" size={18}/></button>
       </div>
       <div className="flex justify-end mt-1">
-        <button onClick={()=>{setMsgs([{role:'assistant',content:'Chat cleared. How can I help?'}]);setMeta(null)}} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition">Clear chat</button>
+        <button onClick={clearChat} className="text-[10px] text-zinc-600 hover:text-zinc-400 transition">Clear chat</button>
       </div>
     </div>
   </div>;
@@ -1436,17 +1468,13 @@ function BreakdownTable({title,data}){
 }
 function ObservabilityView(){
   const t=useToast();
-  const[sum,setSum]=useState(null);
-  const[traces,setTraces]=useState([]);
-  const[auto,setAuto]=useState(false);
-  const load=useCallback(()=>{
-    fetch(`${API}/api/observability/summary`).then(r=>r.json()).then(setSum).catch(()=>{});
-    fetch(`${API}/api/observability/traces?limit=40`).then(r=>r.json()).then(d=>setTraces(d.traces||[])).catch(()=>{});
-  },[]);
+  const{obsSum:sum,obsTraces:traces,obsAuto:auto,setObsAuto:setAuto,loadObs:load,clearObs}=useSession();
   useEffect(()=>{load()},[load]);
   useEffect(()=>{if(!auto)return;const iv=setInterval(load,4000);return()=>clearInterval(iv)},[auto,load]);
-  const clear=async()=>{if(!confirm('Clear all observability history?'))return;await fetch(`${API}/api/observability/traces`,{method:'DELETE'});t('Cleared','success');load()};
+  const clear=async()=>{if(!confirm('Clear all observability history?'))return;await clearObs();t('Cleared','success')};
   if(!sum)return <div className="max-w-6xl mx-auto px-6 py-16 text-center text-zinc-500"><span className="spinner"/> Loading…</div>;
+  const rounds=sum.by_round||{};
+  const showRounds=Object.keys(rounds).length>1;
 
   return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 anim-fade-up">
     <div className="flex items-center justify-between mb-5">
@@ -1475,6 +1503,25 @@ function ObservabilityView(){
       <BreakdownTable title="By engine (provider)" data={sum.by_provider}/>
       <BreakdownTable title="By model" data={sum.by_model}/>
     </div>
+
+    {showRounds&&<div className="rounded-xl border border-brand-500/20 bg-brand-500/[.04] p-4 mb-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Ic name="workflow" size={14} className="text-brand-400"/>
+        <span className="text-[11px] font-bold text-brand-300 uppercase tracking-widest">Debate rounds ({Object.keys(rounds).length})</span>
+      </div>
+      <div className="overflow-x-auto"><div className="min-w-[520px]">
+        <div className="grid grid-cols-[90px_1fr_1fr_1fr_1fr] gap-2 text-[10px] text-zinc-600 uppercase font-semibold pb-1.5 border-b border-zinc-800">
+          <span>Round</span><span className="text-right">Calls</span><span className="text-right">Errors</span><span className="text-right">Tokens</span><span className="text-right">Avg ms</span>
+        </div>
+        {Object.entries(rounds).map(([name,r])=><div key={name} className="grid grid-cols-[90px_1fr_1fr_1fr_1fr] gap-2 text-[12px] items-center py-1.5 border-b border-zinc-800/40 last:border-0">
+          <span className="text-brand-300 font-semibold">{name}</span>
+          <span className="text-right text-zinc-200">{r.calls}</span>
+          <span className={`text-right ${r.errors?'text-rose-400':'text-zinc-500'}`}>{r.errors}</span>
+          <span className="text-right text-zinc-300 font-mono">{(r.tokens||0).toLocaleString()}</span>
+          <span className="text-right text-zinc-400">{r.avg_latency_ms}</span>
+        </div>)}
+      </div></div>
+    </div>}
 
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Recent calls ({traces.length})</div>
@@ -1526,6 +1573,7 @@ function App(){
 
   return <ToastProvider>
     <AnalysisProvider>
+    <SessionProvider>
     <div className="min-h-screen flex flex-col relative">
       <Navbar view={view} setView={setView} online={online} onSettingsClick={()=>setView('settings')} activeProvider={activeProvider}/>
       <NeedsKeyModal state={needKey} onClose={()=>setNeedKey(null)} onSaved={fetchConfigStatus}/>
@@ -1543,6 +1591,7 @@ function App(){
         ClinicalPilot v2 · Multi-Agent Clinical Decision Support · For research & educational use only
       </footer>
     </div>
+    </SessionProvider>
     </AnalysisProvider>
   </ToastProvider>;
 }

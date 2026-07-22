@@ -71,7 +71,7 @@ grid — the user can set `critic → cloud-fast` and leave the rest on MedGemma
   "version": 1,
   "profiles": { /* map of id -> Connection Profile */ },
   "roles":    { /* map of role -> {primary, fallbacks[]} */ },
-  "debate":   { "max_rounds": 3, "min_rounds": 1, "consensus_required": true },
+  "debate":   { "max_rounds": 1, "min_rounds": 1, "consensus_required": true },
   "observability": { "sqlite": true, "langfuse": false, "langsmith": false }
 }
 ```
